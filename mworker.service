@@ -1,0 +1,12 @@
+[Unit]
+Description=mworker service
+After=multi-user.target
+Conflicts=getty@tty1.service
+
+[Service]
+Type=simple
+ExecStart=/home/tnor/5GMediahub/Measurements/Service/startmworker.sh
+StandardInput=tty-force
+
+[Install]
+WantedBy=multi-user.target
