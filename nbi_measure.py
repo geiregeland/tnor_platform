@@ -20,10 +20,9 @@ from mmapp import Startsample,StartExp,rxtx,get_kpis,logged
 
 from dotenv import load_dotenv as loadenv
 from config import myprint
+from config import G5Conf
 
-Logfile = "/home/tnor/5GMediahub/Measurements/Service/Logs"
-
-
+Logfile = G5Conf['Logpath']
 
 
 def clean_osgetenv(s):
@@ -34,11 +33,10 @@ def clean_osgetenv(s):
         pass
     return s
 
+ServerPort = G5Conf['iperfport']
+ServerAddress = G5Conf['iperfhost']
+MeasurePort = G5Conf['mport']
     
-ServerPort = clean_osgetenv(os.getenv('IPERF_PORT'))
-ServerAddress = clean_osgetenv(os.getenv('IPERF_ADDRESS'))
-MeasurePort = clean_osgetenv(os.getenv('MPORT'))
-
 #q = Queue(connection = myworker.connRedis(), default_timeout = 7200)
 def mytime():
   now = datetime.now()
@@ -61,8 +59,8 @@ def connRedis():
     try:
         #redisPort=get_redisport()
         #redis_url = os.getenv('REDIS_URL', 'redis://localhost:'+redisPort)
-        host = clean_osgetenv(os.getenv('REDIS_HOST'))
-        port = clean_osgetenv(os.getenv('REDIS_PORT'))
+        host = G5Conf['redishost']
+        port = G5Conf['redisport']
         redis_url = f'redis://{host}:{port}'
         myprint(redis_url)
         return connect_redis(redis_url)
@@ -77,8 +75,8 @@ q = Queue('low',connection = connRedis(), default_timeout = 7200)
 
 app = Flask(__name__)
 # Configuration Variables
-redishost = clean_osgetenv(os.getenv('REDIS_HOST'))
-redisport = clean_osgetenv(os.getenv('REDIS_PORT'))
+redishost = G5Conf['redishost']
+redisport = G5Conf['redisport']
 
 app.config["DEBUG"] = True
 app.config["RQ_DASHBOARD_REDIS_PORT"] = redisport
