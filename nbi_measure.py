@@ -21,6 +21,7 @@ from mmapp import Startsample,StartExp,rxtx,get_kpis,logged
 from dotenv import load_dotenv as loadenv
 from config import myprint
 from config import G5Conf
+import requests
 
 Logfile = G5Conf['Logpath']
 
@@ -40,7 +41,7 @@ MeasurePort = G5Conf['mport']
 #q = Queue(connection = myworker.connRedis(), default_timeout = 7200)
 def mytime():
   now = datetime.now()
-  return(str(now.time()).split('.')[0])
+  return(str(now.date())+" "+str(now.time()).split('.')[0])
 
 
 def errorResponse(message, error):
@@ -108,7 +109,7 @@ def get_token():
 
 @logged
 def get_timestamp():
-    return datetime.utcnow().isoformat()
+    return datetime.utcnow().isoformat().split(',')[0]+'Z'
 
 @logged
 def registerkpis(meta):
@@ -120,12 +121,23 @@ def registerkpis(meta):
     headers={'Content-Type': 'application/json', 'Authorization':''}
     headers['Authorization'] = 'Bearer ' + get_token()
     
-    data={'test': {'use_case': f'{use_case}', 'test_case': f'{test_case}', 'test_case_id': f'{test_case_id}'}, 'data': {'timestamp': f'get_timestamp()', 'kpis': uc_kpis}}
+    data={'test': {'use_case': f'{use_case}', 'test_case': f'{test_case}', 'test_case_id': f'{test_case_id}'}, 'data': {'timestamp': f'{get_timestamp()}', 'kpis': uc_kpis['kpis']}}
     
-    
+    myprint(data)
     r=requests.post('http://5gmediahub.vvservice.cttc.es/5gmediahub/data-collector/kpis',headers=headers,json=data)
     myprint(r)
 
+@logged
+def registerkpis_test(data):
+    headers={'Content-Type': 'application/json', 'Authorization':''}
+    headers['Authorization'] = 'Bearer ' + get_token()
+    
+    
+    myprint(data)
+    r=requests.post('http://5gmediahub.vvservice.cttc.es/5gmediahub/data-collector/kpis',headers=headers,json=data)
+    myprint(r)
+
+    
 @app.route('/startexperiment/',methods = ['GET','POST'])
 @logged
 def startexp():

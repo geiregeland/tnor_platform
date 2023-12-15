@@ -3,7 +3,7 @@ import sys
 from flask import jsonify
 import redis
 from rq import Worker, Queue, Connection
-from nbi_measure import clean_osgetenv
+from nbi_measure import clean_osgetenv,myprint
 from config import G5Conf
 
 
@@ -29,7 +29,7 @@ def connRedis():
         #host = clean_osgetenv(os.getenv('REDIS_HOST'))
         #port = clean_osgetenv(os.getenv('REDIS_PORT'))
         redis_url = f'redis://{host}:{port}'
-        print(redis_url)
+        myprint("Connecting to redis: ",redis_url)
         return connect_redis(redis_url)
     
     except Exception as error:

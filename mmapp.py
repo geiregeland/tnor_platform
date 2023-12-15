@@ -34,13 +34,14 @@ duration = 5 #5s if iperf
 
 def mytime():
   now = datetime.now()
-  return(str(now.time()).split('.')[0])
+  return(str(now.date())+" "+str(now.time()).split('.')[0])
+
 
 
 def logged(func):
     @wraps(func)
     def with_logging(*args, **kwargs):
-        myprint(mytime(),"The function '"+func.__name__ + "' was called")
+        myprint(mytime(),"The function <"+func.__name__ + "> was called")
         return func(*args, **kwargs)
     return with_logging
 
