@@ -1,4 +1,5 @@
 import os
+import time
 import subprocess
 from flask import Flask, session, flash, json, request,jsonify
 from rq import Queue
@@ -45,7 +46,7 @@ def mytime():
 
 
 def errorResponse(message, error):
-    myprint(f'{message}: {error}')
+    myprint(mytime(),f'{message}: {error}')
     return jsonify({'Status': 'Error', 'Message': message, 'Error': f'{error}'}), 403
 
 @logged    
@@ -63,7 +64,7 @@ def connRedis():
         host = G5Conf['redishost']
         port = G5Conf['redisport']
         redis_url = f'redis://{host}:{port}'
-        myprint(redis_url)
+        myprint(mytime(),"redis url: ",redis_url)
         return connect_redis(redis_url)
     
     except Exception as error:
@@ -91,41 +92,46 @@ app.config["RQ_DASHBOARD_REDIS_URL"] = f"redis://{redishost}:{redisport}"
 
 @logged
 def get_token():
-    url = 'https://iambackend.netapps-5gmediahub.eu/realms/5GMediaHUB/protocol/openid-connect/token'
-    headers = { 'Content-Type': 'application/x-www-form-urlencoded'
-    }
-    data = {
-        'grant_type': 'client_credentials',
-        'client_id': 'tnor-client-collector',
-        'client_secret': clean_osgetenv(os.getenv('CLIENT_SECRET'))
-    }
+    try:
+        url = 'https://iambackend.netapps-5gmediahub.eu/realms/5GMediaHUB/protocol/openid-connect/token'
+        headers = { 'Content-Type': 'application/x-www-form-urlencoded'}
+        data = {
+            'grant_type': 'client_credentials',
+            'client_id': 'tnor-client-collector',
+            'client_secret': clean_osgetenv(os.getenv('CLIENT_SECRET'))
+        }
     
 
-    response = requests.post(url, headers=headers, data=data)
+        response = requests.post(url, headers=headers, data=data)
 
-    myprint(response.status_code)
-    token=response.json()['access_token']
-    return token
+        myprint(mytime(),"Get token response", response.status_code)
+        token=response.json()['access_token']
+        return token
+    except Exception as error:
+        return errorResponse("Failed <get_token>",error)
 
 @logged
 def get_timestamp():
-    return datetime.utcnow().isoformat().split(',')[0]+'Z'
+    return datetime.utcnow().isoformat().split('.')[0]+'Z'
 
 @logged
 def registerkpis(meta):
-    test_case = meta['test_case']
-    use_case = meta['use_case']
-    test_case_id = meta['test_case_id']
-    uc_kpis = meta['kpis']
+    try:
+        test_case = meta['test_case']
+        use_case = meta['use_case']
+        test_case_id = meta['test_case_id']
+        uc_kpis = meta['kpis']
     
-    headers={'Content-Type': 'application/json', 'Authorization':''}
-    headers['Authorization'] = 'Bearer ' + get_token()
+        headers={'Content-Type': 'application/json', 'Authorization':''}
+        headers['Authorization'] = 'Bearer ' + get_token()
     
-    data={'test': {'use_case': f'{use_case}', 'test_case': f'{test_case}', 'test_case_id': f'{test_case_id}'}, 'data': {'timestamp': f'{get_timestamp()}', 'kpis': uc_kpis['kpis']}}
+        data={'test': {'use_case': f'{use_case}', 'test_case': f'{test_case}', 'test_case_id': f'{test_case_id}'}, 'data': {'timestamp': f'{get_timestamp()}', 'kpis': uc_kpis['kpis']}}
     
-    myprint(data)
-    r=requests.post('http://5gmediahub.vvservice.cttc.es/5gmediahub/data-collector/kpis',headers=headers,json=data)
-    myprint(r)
+        myprint(mytime(),"Data to register=",data)
+        r=requests.post('http://5gmediahub.vvservice.cttc.es/5gmediahub/data-collector/kpis',headers=headers,json=data)
+        myprint(mytime(),"Register response:",r)
+    except Exception as error:
+        return errorResponse("Failed call <registerkpis>",error)
 
 @logged
 def registerkpis_test(data):
@@ -133,9 +139,9 @@ def registerkpis_test(data):
     headers['Authorization'] = 'Bearer ' + get_token()
     
     
-    myprint(data)
+    myprint(mytime(),data)
     r=requests.post('http://5gmediahub.vvservice.cttc.es/5gmediahub/data-collector/kpis',headers=headers,json=data)
-    myprint(r)
+    myprint(mytime(),r)
 
     
 @app.route('/startexperiment/',methods = ['GET','POST'])
@@ -185,12 +191,15 @@ def stoptexp():
         #job = Job.create(startexp,args=[uid,delta],id=uid,connection=connRedis())
         job.meta['active'] = 0
         job.save_meta()
-        
+        time.sleep(2)
+        job.refresh()
         #delta = timedelta(minutes = 5)
         #at=datetime.now()+delta
         #r=q.enqueue_job(job)
         
-        #registerkpis(job.meta)
+        myprint(mytime(),job.meta)
+        myprint(mytime(),"about to register kpis......")
+        registerkpis(job.meta)
 
         return f'stopexperiment: ok'
     except Exception as error:

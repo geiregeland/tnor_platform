@@ -1,11 +1,12 @@
 [Unit]
 Description=mworker service
-After=multi-user.target
-Conflicts=getty@tty1.service
+
 
 [Service]
+User=tnor
 Type=simple
-ExecStart=/home/tnor/5GMediahub/Measurements/Service/startmworker.sh
+WorkingDirectory=/home/tnor/5GMediahub/Measurements/tnor_platform
+ExecStart=/usr/bin/python3 /home/tnor/5GMediahub/Measurements/tnor_platform/mworker.py
 StandardInput=tty-force
 
 [Install]

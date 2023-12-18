@@ -106,13 +106,13 @@ def StartExp(uid):
   tnor_stats['PPKI-9'] = results['MEC CPU max']
   tnor_stats['PPKI-10'] = results['MEC MEM max']
 
-  uc_kopi = kips.copy()
+  uc_kpi = kpis.copy()
   
   for i in tnor_stats:
-    for j in uc_kips["kpis"]:
+    for j in uc_kpi["kpis"]:
       if j["name"] == i:
         j["value"] = tnor_stats[i]
-  job.meta['kpis'] = uc_kpis
+  job.meta['kpis'] = uc_kpi
   job.save_meta()
   job.refresh()
     
