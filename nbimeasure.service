@@ -1,0 +1,15 @@
+[Unit]
+Description=nbi_measure service
+
+
+[Service]
+User=tnor
+Type=simple
+WorkingDirectory=/home/tnor/5GMediahub/Measurements/tnor_platform
+ExecStart=/usr/bin/python3 /home/tnor/5GMediahub/Measurements/tnor_platform/nbi_measure.py
+
+
+StandardInput=tty-force
+
+[Install]
+WantedBy=multi-user.target
