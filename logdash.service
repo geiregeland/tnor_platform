@@ -1,0 +1,13 @@
+[Unit]
+Description=logdash service
+
+
+[Service]
+User=tnor
+Type=simple
+WorkingDirectory=/home/tnor/5GMediahub/Measurements/tnor_platform
+ExecStart=/usr/bin/python3 /home/tnor/5GMediahub/Measurements/tnor_platform/logdash.py
+StandardInput=tty-force
+
+[Install]
+WantedBy=multi-user.target
