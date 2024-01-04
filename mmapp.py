@@ -21,16 +21,27 @@ from cpumem import _system_mem as total_mem
 from cpumem import _virtual_mem as virtual_mem
 from cpumem import _used_mem as used_mem
 from cpumem import availebility
+from scapy.all import *
 
 from config import tnor_stats,kpis,myprint
+from config import ue_ip
 
 Logfile = G5Conf['Logpath']
+Logpath = G5Conf['Logpath']
 ServerPort = G5Conf['iperfport']
 ServerAddress = G5Conf['iperfhost']
 MeasurePort = G5Conf['mport']
 owping = G5Conf['owping']
 nic = G5Conf['nic']
 duration = 5 #5s if iperf
+
+timestamps={}
+throughput={}
+first = 0
+
+def ff(src,dst):
+    return f'{src}:{dst}'
+
 
 def mytime():
   now = datetime.now()
@@ -44,6 +55,49 @@ def logged(func):
         myprint(mytime(),"The function <"+func.__name__ + "> was called")
         return func(*args, **kwargs)
     return with_logging
+
+
+def update(src,dst,t,data):
+    global first
+    try:
+        current = throughput[ff(src,dst)]
+        delta = t - timestamps[ff(src,dst)] #sec since epoch
+        new = data/delta
+        if new > current['peak']:
+            throughput[ff(src,dst)]['peak'] = new
+        timestamps[ff(src,dst)] = t
+        throughput[ff(src,dst)]['stamp'] = t
+        throughput[ff(src,dst)]['last_t'] = t
+        throughput[ff(src,dst)]['data'] += data
+    except:
+        if not first:
+            first = t
+        item={}
+        item['first_t'] = first
+        item['stamp'] = t
+        item['last_t'] = t
+        item['data'] = data
+        item['peak'] = 0
+        timestamps[ff(src,dst)] = t
+        throughput[ff(src,dst)] = item
+
+
+def human(num):
+    for x in ['', 'k', 'M', 'G']:
+        if num < 1000.:
+            return f'{num*8:3.1f} {x}bps'
+        num /= 1000.
+    return  f'{num*8:3.1f} {x}bps'
+
+
+def traffic_monitor_callback(pkt):
+    if IP in pkt:
+        pkt = pkt[IP]
+        #traffic.update({tuple(sorted(map(atol, (pkt.src, pkt.dst)))): pkt.len})
+        #print(f'time:{pkt.time}, src:{pkt.src}, dest:{pkt.dst}, len:{pkt.len}, atol:{atol(pkt.src)}')
+        for i in ue_ip:
+          if i in pkt.src or i in pkt.dst:
+            update(pkt.src,pkt.dst,pkt.time,pkt.len)
 
 
 @logged
@@ -69,13 +123,16 @@ def StartExp(uid):
 
   #kill measurement after 1 hour
   runtime = 3600
+
+  p = subprocess.Popen(['tcpdump',  '-i', nic, '-w', f'{Logpath}/cap.pcap'], stdout=subprocess.PIPE)
   
   while job.meta['active'] and runtime>0:
     #print(mytime(),f'Job is active {job.meta["active"]}')
     time.sleep(1)
     job.refresh()
     runtime-=1
-    
+
+    #check if tcpdump should be stopped
     process = subprocess.Popen(shlex.split(f'cat /sys/class/net/{nic}/statistics/tx_bytes'),stdout=subprocess.PIPE,stderr=subprocess.STDOUT)    
     for line in process.stdout:
       tmp  = 8*int(line)
@@ -100,11 +157,37 @@ def StartExp(uid):
       results['MEC MEM max'] = tmp
     results['availebility'] = availebility()
 
-  tnor_stats['CPKI-1'] = results['rx_max']/1000000
-  tnor_stats['CPKI-2'] = results['tx_max']/1000000
-  tnor_stats['CPKI-15'] = results['availebility']
-  tnor_stats['PPKI-9'] = results['MEC CPU max']
-  tnor_stats['PPKI-10'] = results['MEC MEM max']
+  p.terminate()
+  for p in PcapReader(f'{Logpath}/cap.pcap'):
+    traffic_monitor_callback(p)
+
+  peak_ul = 0
+  peak_dl = 0
+  ip_dl=''
+  ip_ul=''
+  for i in throughput:
+      if throughput[i]['peak']>0:
+          src,dst = i.split(':')
+          for j in ue_ip:
+              if j in src:
+                  peak = throughput[i]['peak']
+                  if peak > peak_ul:
+                      peak_ul = peak
+                      ip_ul=src
+              if j in dst:
+                  peak = throughput[i]['peak']
+                  if peak > peak_dl:
+                      peak_dl = peak
+                      ip_dl = dst
+
+  #call update here and read tcpdump pcap file for finding peak UL/DL per IP dst
+  tnor_stats['CKPI-1'] = round(peak_ul/1000000,2)
+  tnor_stats['CKPI-2'] = round(peak_dl/1000000,2)
+  #tnor_stats['CKPI-1'] = results['rx_max']/1000000
+  #tnor_stats['CKPI-2'] = results['tx_max']/1000000
+  tnor_stats['CKPI-15'] = results['availebility']
+  tnor_stats['PKPI-9'] = results['MEC CPU max']
+  tnor_stats['PKPI-10'] = results['MEC MEM max']
 
   uc_kpi = kpis.copy()
   
@@ -118,6 +201,7 @@ def StartExp(uid):
     
   myprint(mytime(),f'Ending job.......')
   myprint(mytime(), tnor_stats)
+  myprint(mytime(),f'{ip_dl}: UL:{human(peak_ul)} - {ip_ul}:DL:{human(peak_dl)}')
   file = open(f'{G5Conf["Logpath"]}/{G5Conf["logfiletemp"]}','wb')
   myprint(results)
   pickle.dump(results,file)

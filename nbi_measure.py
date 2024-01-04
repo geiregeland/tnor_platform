@@ -205,6 +205,51 @@ def stoptexp():
     except Exception as error:
         return errorResponse("Failed call to /stopexperiment",error)
 
+@app.route('/stopexperimentnorep/',methods = ['GET','POST'])
+@logged
+def stoptexpnorep():
+    try:
+        arguments = request.json
+
+        use_case = arguments['use_case']
+        test_case = arguments['test_case']
+        test_case_id=arguments['test_case_id']
+        
+        #uid = uuid.uuid4().hex
+        uid = test_case_id
+
+        #uid = uuid.uuid4().hex
+        job = Job.fetch(uid,connection=connRedis())
+        
+        #job = Job.create(startexp,args=[uid,delta],id=uid,connection=connRedis())
+        job.meta['active'] = 0
+        job.save_meta()
+        time.sleep(2)
+        job.refresh()
+        #delta = timedelta(minutes = 5)
+        #at=datetime.now()+delta
+        #r=q.enqueue_job(job)
+        
+        myprint(mytime(),job.meta)
+        myprint(mytime(),"will not register kpis......")
+        
+        meta = job.meta
+        test_case = meta['test_case']
+        use_case = meta['use_case']
+        test_case_id = meta['test_case_id']
+        uc_kpis = meta['kpis']
+    
+    
+        data={'test': {'use_case': f'{use_case}', 'test_case': f'{test_case}', 'test_case_id': f'{test_case_id}'}, 'data': {'timestamp': f'{get_timestamp()}', 'kpis': uc_kpis['kpis']}}
+    
+        myprint(mytime(),"Data that will not be  registered=",data)
+
+        #registerkpis(job.meta)
+
+        return f'stopexperimentnorep: ok'
+    except Exception as error:
+        return errorResponse("Failed call to /stopexperimentnorep",error)
+
 
 #----------------------------------------- old stuff below ----------------------------------
 

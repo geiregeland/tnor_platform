@@ -85,6 +85,9 @@ kpis = {"kpis":[{"name":"CKPI-1","value":f"{PEAK_UL}","unit":"Mbps"},
 ]
 }
 
+ue_ip = {'10.7.0':'mda-go','10.6.66':'5G SA fbu'}
+
+
 def myprint(*args):
     line = ' '.join([str(a) for a in args])
     f = open(f'{G5Conf["Logpath"]}/nbi_measure.log','a')
