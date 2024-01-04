@@ -181,8 +181,8 @@ def StartExp(uid):
                       ip_dl = dst
 
   #call update here and read tcpdump pcap file for finding peak UL/DL per IP dst
-  tnor_stats['CKPI-1'] = round(peak_ul/1000000,2)
-  tnor_stats['CKPI-2'] = round(peak_dl/1000000,2)
+  tnor_stats['CKPI-1'] = round(peak_ul*8/1000000,2)
+  tnor_stats['CKPI-2'] = round(peak_dl*8/1000000,2)
   #tnor_stats['CKPI-1'] = results['rx_max']/1000000
   #tnor_stats['CKPI-2'] = results['tx_max']/1000000
   tnor_stats['CKPI-15'] = results['availebility']
