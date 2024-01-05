@@ -185,9 +185,9 @@ def StartExp(uid):
   tnor_stats['CKPI-2'] = round(peak_dl*8/1000000,2)
   #tnor_stats['CKPI-1'] = results['rx_max']/1000000
   #tnor_stats['CKPI-2'] = results['tx_max']/1000000
-  tnor_stats['CKPI-15'] = results['availebility']
-  tnor_stats['PKPI-9'] = results['MEC CPU max']
-  tnor_stats['PKPI-10'] = results['MEC MEM max']
+  tnor_stats['CKPI-15'] = round(results['availebility'],2)
+  tnor_stats['PKPI-9'] = round(results['MEC CPU max'],2)
+  tnor_stats['PKPI-10'] = round(results['MEC MEM max'],2)
 
   uc_kpi = kpis.copy()
   
