@@ -117,8 +117,8 @@ def StartExp(uid):
 
   results['tx_max'] = 0
   results['rx_max'] = 0
-  results['MEC CPU max'] = round(vcpu()/cpu()*100,5)
-  results['MEC MEM max'] = round(virtual_mem()/total_mem()*100,5)
+  results['MEC CPU max'] = round(100*vcpu()/cpu(),5)
+  results['MEC MEM max'] = round(100*virtual_mem()/total_mem(),5)
   results['Availebility'] = availebility()
 
   #kill measurement after 1 hour
@@ -148,11 +148,11 @@ def StartExp(uid):
       results['rx'] = tmp
 
       
-    tmp = round(vcpu()/cpu()*100,5)
+    tmp = round(100*vcpu()/cpu(),5)
     if tmp > results['MEC CPU max']:
       results['MEC CPU max'] = tmp
 
-    tmp = round(virtual_mem()/total_mem()*100,5)
+    tmp = round(100*virtual_mem()/total_mem(),5)
     if tmp > results['MEC MEM max']:
       results['MEC MEM max'] = tmp
     results['availebility'] = availebility()
