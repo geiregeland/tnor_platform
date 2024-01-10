@@ -124,7 +124,7 @@ def StartExp(uid):
   #kill measurement after 1 hour
   runtime = 3600
 
-  p = subprocess.Popen(['tcpdump',  '-i', nic, '-w', f'{Logpath}/cap.pcap'], stdout=subprocess.PIPE)
+  p = subprocess.Popen(['tcpdump',  '-i', nic, '-w', f'{Logpath}/cap_{uid}.pcap'], stdout=subprocess.PIPE)
   
   while job.meta['active'] and runtime>0:
     #print(mytime(),f'Job is active {job.meta["active"]}')
@@ -158,7 +158,7 @@ def StartExp(uid):
     results['availebility'] = availebility()
 
   p.terminate()
-  for p in PcapReader(f'{Logpath}/cap.pcap'):
+  for p in PcapReader(f'{Logpath}/cap_{uid}.pcap'):
     traffic_monitor_callback(p)
 
   peak_ul = 0
