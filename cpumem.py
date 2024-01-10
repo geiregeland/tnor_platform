@@ -56,7 +56,7 @@ def cpu_percent():
         return 0.0
 
 def get_num_cpus():
-    return 128
+    return _host_num_cpus()
 
 def _cpu_usage():
     """Compute total cpu usage of the container in nanoseconds

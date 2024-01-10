@@ -1,7 +1,7 @@
 import os
 import time
 import subprocess
-from flask import Flask, session, flash, json, request,jsonify
+from flask import Flask, session, flash, json, request,jsonify,redirect
 from rq import Queue
 from rq.job import Job 
 #import rq_dashboard
@@ -143,7 +143,31 @@ def registerkpis_test(data):
     r=requests.post('http://5gmediahub.vvservice.cttc.es/5gmediahub/data-collector/kpis',headers=headers,json=data)
     myprint(mytime(),r)
 
+
+
+@app.route('/v1/parameters',methods=['POST','GET'])
+@logged
+def parameters():
+    try:
+        arguments = request.json
+        action = arguments['action']
+        #explength=arguments['delta']
+        use_case = arguments['use_case']
+        test_case = arguments['test_case']
+        test_case_id=arguments['test_case_id']
+        
+        if request.method == 'POST':
+            if action == 'start':
+                r = requests.get(f'http://10.5.1.4:9055/startexperiment/',json={'use_case':use_case,'test_case':test_case,'test_case_id':test_case_id})
+            elif action == 'stop':
+                r = requests.get(f'http://10.5.1.4:9055/stopexperiment/',json={'use_case':use_case,'test_case':test_case,'test_case_id':test_case_id})
+        return f'/parameters: ok'
     
+    except Exception as error:
+        return errorResponse("Failed call to /parameters",error)
+
+         
+                                
 @app.route('/startexperiment/',methods = ['GET','POST'])
 @logged
 def startexp():
@@ -153,7 +177,8 @@ def startexp():
         use_case = arguments['use_case']
         test_case = arguments['test_case']
         test_case_id=arguments['test_case_id']
-        
+        #print("OK SUCCESS")
+        return f'parameters: ok'
         #uid = uuid.uuid4().hex
         uid = test_case_id
 
