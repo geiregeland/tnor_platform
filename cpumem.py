@@ -1,4 +1,6 @@
 import logging
+from config import G5Conf
+import subprocess
 
 logger = logging.getLogger(__name__)
 
@@ -10,6 +12,8 @@ MEM_USAGE_PATH='/sys/fs/cgroup/memory/memory.usage_in_bytes'
 MEM_USAGE_PATH_V2='/sys/fs/cgroup/memory/kubepods/memory.usage_in_bytes'
 MEM_TOTAL_PATH='/proc/meminfo'
 
+
+
 container_num_cpus = None
 host_num_cpus = None
 
@@ -17,8 +21,33 @@ last_cpu_usage = None
 last_system_usage = None
 
 
+def _kubecpu(i,uc):
+    return f'microk8s.kubectl exec -it {i} -n {G5Conf[f"{uc}-netapp"]} -- /usr/bin/cat /sys/fs/cgroup/cpu/cpuacct.usage'
+def _kubemem(i,uc):
+    return f'microk8s.kubectl exec -it {i} -n {G5Conf[f"{uc}-netapp"]} -- /usr/bin/cat /sys/fs/cgroup/memory/memory.usage_in_bytes'
+    
 
-def cpu_percent():
+def get_data(uc,measure):
+    cmd = f'/snap/bin/microk8s.kubectl describe pods -n {G5Conf[f"{uc}-netapp"]} |/usr/bin/grep ^Name:|/usr/bin/sed "s/.*://" | /usr/bin/tr -d " "'
+    r= subprocess.run([f'{cmd}'], capture_output=True, shell=True,text=True)
+    lsum=0
+    
+    for i in r.stdout.split('\n')[0:-1]:
+        if measure == "MEM":
+            cc = _kubemem(i,uc)
+            #f'microk8s.kubectl exec -it {i} -n {G5Conf[f"{uc}-netapp"]} -- /usr/bin/cat /sys/fs/cgroup/cpu/cpuacct.usage'
+        elif measure == "CPU":
+            cc = _kubecpu(i,uc)
+            
+        r = subprocess.run([f'{cc}'], capture_output=True, shell=True,text=True)
+        if r.stdout != '':
+
+            lsum+= int(r.stdout)
+    return lsum
+
+
+
+def cpu_percent(uc):
     """Estimate CPU usage percent for Ray pod managed by Kubernetes
     Operator.
     Computed by the following steps
@@ -35,7 +64,7 @@ def cpu_percent():
     global last_system_usage
     global last_cpu_usage
     try:
-        cpu_usage = _cpu_usage()
+        cpu_usage = get_data(uc,"CPU")
         system_usage = _system_usage()
         # Return 0.0 on first call.
         if last_system_usage is None:
@@ -46,23 +75,31 @@ def cpu_percent():
             system_delta = (system_usage - last_system_usage) / _host_num_cpus()
 
             quotient = cpu_delta / system_delta
-            cpu_percent = round(quotient * 100 / get_num_cpus(), 1)
+            #cpu_percent = round(quotient * 100 , 1)
+            cpu_percent = round(quotient * 100 / get_num_cpus(uc), 1)
         last_system_usage = system_usage
         last_cpu_usage = cpu_usage
         # Computed percentage might be slightly above 100%.
+        #return cpu_percent
         return min(cpu_percent, 100.0)
     except Exception:
         logger.exception("Error computing CPU usage of Ray Kubernetes pod.")
         return 0.0
 
-def get_num_cpus():
-    return _host_num_cpus()
+def get_num_cpus(uc):
+    if uc == "UC1":
+        return 1
+    else:
+        return 6
+    
+    #return _host_num_cpus()
 
 def _cpu_usage():
     """Compute total cpu usage of the container in nanoseconds
     by reading from cpuacct in cgroups v1 or cpu.stat in cgroups v2."""
     try:
         # cgroups v1
+
         return int(open(CPU_USAGE_PATH).read())
     except FileNotFoundError:
         # cgroups v2

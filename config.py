@@ -36,12 +36,16 @@ elif os_platform == 'HP4':
     owampConf = {'owping':'/opt/bin/owping','owconf':'-c100 -i0.1 -L10 -s0 -t -AO -nm','owampdest':f'{IperfConf["iperfhost"]}'}
 
 
+uc = {'UC1-netapp':'norigin-streaming', 'UC2-netapp':'ektacom-stream-selector','UC3-netapp':'ektacom-stream-selector'}
+
 pingConf = {'clientcmd':'ping -c 12 -i 0.3','mport':9055}
 
 G5Conf = Merge(RedisConf,IperfConf)
 G5Conf = Merge(G5Conf,LocalConf)
 G5Conf = Merge(G5Conf,owampConf)
 G5Conf = Merge(G5Conf,pingConf)
+G5Conf = Merge(G5Conf,uc)
+
 
 PEAK_UL = 126
 PEAK_DL= 794

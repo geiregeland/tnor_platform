@@ -2,6 +2,7 @@ import os
 import time
 import subprocess
 from flask import Flask, session, flash, json, request,jsonify,redirect
+import flask_monitoringdashboard as dashboard
 from rq import Queue
 from rq.job import Job 
 #import rq_dashboard
@@ -23,6 +24,7 @@ from dotenv import load_dotenv as loadenv
 from config import myprint
 from config import G5Conf
 import requests
+import rq_dashboard
 
 Logfile = G5Conf['Logpath']
 
@@ -76,6 +78,9 @@ def connRedis():
 q = Queue('low',connection = connRedis(), default_timeout = 7200)
 
 app = Flask(__name__)
+dashboard.config.init_from(file='config.cfg')
+dashboard.bind(app)
+
 # Configuration Variables
 redishost = G5Conf['redishost']
 redisport = G5Conf['redisport']
@@ -87,8 +92,11 @@ app.config["RQ_DASHBOARD_REDIS_URL"] = f"redis://{redishost}:{redisport}"
 #pwd_get= subprocess.run(['pwd'],check=True,text=False,stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 #app.config['UPLOAD_FOLDER'] = pwd_get.stdout.decode('utf-8')[:-1]+"/uploades"
 
-#app.config.from_object(rq_dashboard.default_settings)
-#app.register_blueprint(rq_dashboard.blueprint,url_prefix='/rq')
+app.config.from_object(rq_dashboard.default_settings)
+rq_dashboard.web.setup_rq_connection(app)
+app.register_blueprint(rq_dashboard.blueprint,url_prefix='/rq')
+
+
 
 @logged
 def get_token():
@@ -178,7 +186,7 @@ def startexp():
         test_case = arguments['test_case']
         test_case_id=arguments['test_case_id']
         #print("OK SUCCESS")
-        return f'parameters: ok'
+        #return f'parameters: ok'
         #uid = uuid.uuid4().hex
         uid = test_case_id
 
@@ -216,7 +224,7 @@ def stoptexp():
         #job = Job.create(startexp,args=[uid,delta],id=uid,connection=connRedis())
         job.meta['active'] = 0
         job.save_meta()
-        time.sleep(2)
+        time.sleep(10)
         job.refresh()
         #delta = timedelta(minutes = 5)
         #at=datetime.now()+delta
@@ -233,7 +241,7 @@ def stoptexp():
 @app.route('/stopexperimentnorep/',methods = ['GET','POST'])
 @logged
 def stoptexpnorep():
-    try:
+    #try:
         arguments = request.json
 
         use_case = arguments['use_case']
@@ -249,7 +257,7 @@ def stoptexpnorep():
         #job = Job.create(startexp,args=[uid,delta],id=uid,connection=connRedis())
         job.meta['active'] = 0
         job.save_meta()
-        time.sleep(2)
+        time.sleep(10)
         job.refresh()
         #delta = timedelta(minutes = 5)
         #at=datetime.now()+delta
@@ -263,7 +271,8 @@ def stoptexpnorep():
         use_case = meta['use_case']
         test_case_id = meta['test_case_id']
         uc_kpis = meta['kpis']
-    
+        print("KOPIs")
+        print(uc_kpis)
     
         data={'test': {'use_case': f'{use_case}', 'test_case': f'{test_case}', 'test_case_id': f'{test_case_id}'}, 'data': {'timestamp': f'{get_timestamp()}', 'kpis': uc_kpis['kpis']}}
     
@@ -272,8 +281,8 @@ def stoptexpnorep():
         #registerkpis(job.meta)
 
         return f'stopexperimentnorep: ok'
-    except Exception as error:
-        return errorResponse("Failed call to /stopexperimentnorep",error)
+    #except Exception as error:
+        #return errorResponse("Failed call to /stopexperimentnorep",error)
 
 
 #----------------------------------------- old stuff below ----------------------------------

@@ -21,6 +21,8 @@ from cpumem import _system_mem as total_mem
 from cpumem import _virtual_mem as virtual_mem
 from cpumem import _used_mem as used_mem
 from cpumem import availebility
+from cpumem import get_data as cpumem
+from cpumem import cpu_percent as cpupercent
 from scapy.all import *
 
 from config import tnor_stats,kpis,myprint
@@ -107,6 +109,8 @@ def StartExp(uid):
   myprint(mytime(),f'{job.meta["active"]}')
   results['start_time'] = datetime.now()
   results['uid'] = uid
+  use_case = job.meta['use_case']
+  
   process = subprocess.Popen(shlex.split(f'cat /sys/class/net/{nic}/statistics/tx_bytes'),stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
   for line in process.stdout:
     results['tx'] = 8*int(line)
@@ -117,8 +121,8 @@ def StartExp(uid):
 
   results['tx_max'] = 0
   results['rx_max'] = 0
-  results['MEC CPU max'] = round(100*vcpu()/cpu(),5)
-  results['MEC MEM max'] = round(100*virtual_mem()/total_mem(),5)
+  results['MEC CPU max'] = round(cpupercent(use_case),5)
+  results['MEC MEM max'] = round(100*cpumem(use_case,"MEM")/total_mem(),5)
   results['Availebility'] = availebility()
 
   #kill measurement after 1 hour
@@ -148,11 +152,11 @@ def StartExp(uid):
       results['rx'] = tmp
 
       
-    tmp = round(100*vcpu()/cpu(),5)
+    tmp = round(cpupercent(use_case),5)
     if tmp > results['MEC CPU max']:
       results['MEC CPU max'] = tmp
 
-    tmp = round(100*virtual_mem()/total_mem(),5)
+    tmp = round(100*cpumem(use_case,"MEM")/total_mem(),5)
     if tmp > results['MEC MEM max']:
       results['MEC MEM max'] = tmp
     results['availebility'] = availebility()
