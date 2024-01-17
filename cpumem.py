@@ -10,8 +10,8 @@ PROC_STAT_PATH = "/proc/stat"
 
 MEM_USAGE_PATH='/sys/fs/cgroup/memory/memory.usage_in_bytes'
 MEM_USAGE_PATH_V2='/sys/fs/cgroup/memory/kubepods/memory.usage_in_bytes'
-MEM_TOTAL_PATH='/proc/meminfo'
-
+#MEM_TOTAL_PATH='/proc/meminfo'
+MEM_TOTAL_PATH='/sys/fs/cgroup/memory/kubepods/memory.limit_in_bytes'
 
 
 container_num_cpus = None
@@ -132,9 +132,9 @@ def _system_usage():
 def _system_mem():
     mem_summary_str = open(MEM_TOTAL_PATH).read().split("\n")[0]
     #get total of memory installed
-    tot = mem_summary_str.split(' ')[-2:-1][0]
+    #tot = mem_summary_str.split(' ')[-2:-1][0]
     #return mem in bytes
-    return int(tot)*1000
+    return int(mem_summary_str)
 
 def _virtual_mem():
     mem_summary_str = open(MEM_USAGE_PATH_V2).read().split("\n")[0]

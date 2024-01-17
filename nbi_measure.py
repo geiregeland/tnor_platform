@@ -2,7 +2,6 @@ import os
 import time
 import subprocess
 from flask import Flask, session, flash, json, request,jsonify,redirect
-import flask_monitoringdashboard as dashboard
 from rq import Queue
 from rq.job import Job 
 #import rq_dashboard
@@ -27,7 +26,10 @@ import requests
 import rq_dashboard
 
 Logfile = G5Conf['Logpath']
+PLATFORM = G5Conf['Platform']
 
+if PLATFORM == 'HP4':
+    import flask_monitoringdashboard as dashboard
 
 def clean_osgetenv(s):
     try:
@@ -78,8 +80,9 @@ def connRedis():
 q = Queue('low',connection = connRedis(), default_timeout = 7200)
 
 app = Flask(__name__)
-dashboard.config.init_from(file='config.cfg')
-dashboard.bind(app)
+if PLATFORM == 'HP4':
+    dashboard.config.init_from(file='config.cfg')
+    dashboard.bind(app)
 
 # Configuration Variables
 redishost = G5Conf['redishost']
@@ -93,7 +96,8 @@ app.config["RQ_DASHBOARD_REDIS_URL"] = f"redis://{redishost}:{redisport}"
 #app.config['UPLOAD_FOLDER'] = pwd_get.stdout.decode('utf-8')[:-1]+"/uploades"
 
 app.config.from_object(rq_dashboard.default_settings)
-rq_dashboard.web.setup_rq_connection(app)
+if PLATFORM == 'HP4':
+    rq_dashboard.web.setup_rq_connection(app)
 app.register_blueprint(rq_dashboard.blueprint,url_prefix='/rq')
 
 

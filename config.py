@@ -17,7 +17,7 @@ if os_platform == 'DOCKER':
     RedisConf = {'redishost':'172.240.20.3', 'redisport':6379}
     IperfConf = {'iperfhost':'172.240.20.2','iperfport':30955}
 
-    LocalConf = {'Logpath':'/root/5GMediaMeasure-main/Logs','logfile1':'iperf.cvs','logfile2':'iperf2.cvs','logfiletemp':'logfiletmp','nic':'eth0'}
+    LocalConf = {'Platform':'DOCKER','Logpath':'/root/5GMediaMeasure-main/Logs','logfile1':'iperf.cvs','logfile2':'iperf2.cvs','logfiletemp':'logfiletmp','nic':'eth0'}
     owampConf = {'owping':'/root/inst/bin/owping','owconf':'-c100 -i0.1 -L10 -s0 -t -AO -nm','owampdest':f'{IperfConf["iperfhost"]}'}
 
 
@@ -25,14 +25,14 @@ elif os_platform == 'INTEL1':
     RedisConf = {'redishost':'10.5.1.2', 'redisport':30379}
     IperfConf = {'iperfhost':'10.5.1.2','iperfport':30955}
 
-    LocalConf = {'Logpath':'/home/tnor/5GMediahub/Measurements/Service/Logs','logfile1':'iperf.cvs','logfile2':'iperf2.cvs','logfiletemp':'logfiletmp','nic':'ensf260c'}
+    LocalConf = {'Platform':'INTEL1','Logpath':'/home/tnor/5GMediahub/Measurements/Service/Logs','logfile1':'iperf.cvs','logfile2':'iperf2.cvs','logfiletemp':'logfiletmp','nic':'ensf260c'}
     owampConf = {'owping':'/opt/bin/owping','owconf':'-c100 -i0.1 -L10 -s0 -t -AO -nm','owampdest':f'{IperfConf["iperfhost"]}'}
 
 elif os_platform == 'HP4':
     RedisConf = {'redishost':'10.5.1.4', 'redisport':30379}
     IperfConf = {'iperfhost':'10.5.1.4','iperfport':30955}
 
-    LocalConf = {'Logpath':'/home/tnor/5GMediahub/Measurements/tnor_platform/Logs','logfile1':'iperf.cvs','logfile2':'iperf2.cvs','logfiletemp':'logfiletmp','nic':'ens3f0'}
+    LocalConf = {'Platform':'HP4','Logpath':'/home/tnor/5GMediahub/Measurements/tnor_platform/Logs','logfile1':'iperf.cvs','logfile2':'iperf2.cvs','logfiletemp':'logfiletmp','nic':'ens3f0'}
     owampConf = {'owping':'/opt/bin/owping','owconf':'-c100 -i0.1 -L10 -s0 -t -AO -nm','owampdest':f'{IperfConf["iperfhost"]}'}
 
 
@@ -65,7 +65,7 @@ AVAILEBILITY = 100.0
 MEC_CPU_USAGE = 100.0
 MEC_MEM_USAGE = 100.0
 
-tnor_stats ={'CKPI-1':PEAK_UL,'CKPI-2':PEAK_DL,'CKPI-3':MAX_UL,'CKPI-4':MAX_DL,'CKPI-5':E2E_LATENCY,'CKPI-6':TN_LATENCY,'CKPI-7':RAN_LATENCY,'CKPI-8':RAN_SNR,'CKPI-9':UE_PER_M2,'CKPI-10':RELIABILITY,'CKPI-11':PACKET_ERROR_RATE,'CKPI-12':JITTER,'CKPI-13':CAPACITY_UL,'CKPI-14':CAPACITY_DL,'CKPI-15':AVAILEBILITY,'PKPI-9':MEC_CPU_USAGE,'PKPI-10':MEC_MEM_USAGE}
+tnor_stats ={'CKPI-1':PEAK_UL,'CKPI-2':PEAK_DL,'CKPI-3':MAX_UL,'CKPI-4':MAX_DL,'CKPI-5':E2E_LATENCY,'CKPI-6':TN_LATENCY,'CKPI-7':RAN_LATENCY,'CKPI-8':RAN_SNR,'CKPI-9':UE_PER_M2,'CKPI-10':RELIABILITY,'CKPI-11':PACKET_ERROR_RATE,'CKPI-12':JITTER,'CKPI-13':CAPACITY_UL,'CKPI-14':CAPACITY_DL,'CKPI-15':AVAILEBILITY,'PKPI-11':MEC_CPU_USAGE,'PKPI-12':MEC_MEM_USAGE}
 
 
 kpis = {"kpis":[{"name":"CKPI-1","value":f"{PEAK_UL}","unit":"Mbps"},
@@ -84,13 +84,18 @@ kpis = {"kpis":[{"name":"CKPI-1","value":f"{PEAK_UL}","unit":"Mbps"},
                 {"name":"CKPI-13","value":f"{CAPACITY_UL}","unit":"MHz"},
                 {"name":"CKPI-14","value":f"{CAPACITY_DL}","unit":"MHz"},
                 {"name":"CKPI-15","value":f"{AVAILEBILITY}","unit":"%"},
-                {"name":"PKPI-9","value":f"{MEC_CPU_USAGE}","unit":"%"},
-                {"name":"PKPI-10","value":f"{MEC_MEM_USAGE}","unit":"%"}
+                {"name":"PKPI-11","value":f"{MEC_CPU_USAGE}","unit":"%"},
+                {"name":"PKPI-12","value":f"{MEC_MEM_USAGE}","unit":"%"}
 ]
 }
 
 ue_ip = {'10.7.0':'mda-go','10.6.66':'5G SA fbu'}
+ips={}
+for i in ue_ip:
+    ips[ue_ip[i]]=i
 
+
+tcpdump_filter=f'net {ips["mda-go"]}.0/24 or net {ips["5G SA fbu"]}.0/24'
 
 def myprint(*args):
     line = ' '.join([str(a) for a in args])
@@ -100,3 +105,6 @@ def myprint(*args):
     f.close()
     print(line)    
     
+if __name__ == '__main__':
+    ss=f'tcpdump -i {G5Conf["nic"]} {tcpdump_filter} -w captest.cap'
+    print(ss)

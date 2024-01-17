@@ -27,6 +27,7 @@ from scapy.all import *
 
 from config import tnor_stats,kpis,myprint
 from config import ue_ip
+from config import tcpdump_filter
 
 Logfile = G5Conf['Logpath']
 Logpath = G5Conf['Logpath']
@@ -128,7 +129,7 @@ def StartExp(uid):
   #kill measurement after 1 hour
   runtime = 3600
 
-  p = subprocess.Popen(['tcpdump',  '-i', nic, '-w', f'{Logpath}/cap_{uid}.pcap'], stdout=subprocess.PIPE)
+  p = subprocess.Popen(['tcpdump',  '-i', nic, tcpdump_filter,'-w', f'{Logpath}/cap_{uid}.pcap'], stdout=subprocess.PIPE)
   
   while job.meta['active'] and runtime>0:
     #print(mytime(),f'Job is active {job.meta["active"]}')
@@ -190,8 +191,8 @@ def StartExp(uid):
   #tnor_stats['CKPI-1'] = results['rx_max']/1000000
   #tnor_stats['CKPI-2'] = results['tx_max']/1000000
   tnor_stats['CKPI-15'] = round(results['availebility'],2)
-  tnor_stats['PKPI-9'] = round(results['MEC CPU max'],2)
-  tnor_stats['PKPI-10'] = round(results['MEC MEM max'],2)
+  tnor_stats['PKPI-11'] = round(results['MEC CPU max'],2)
+  tnor_stats['PKPI-12'] = round(results['MEC MEM max'],2)
 
   uc_kpi = kpis.copy()
   
