@@ -38,6 +38,7 @@ Thumbs.db
 
 .env
 Logs
+Test
 __pycache__
 __MACOSX
 *~

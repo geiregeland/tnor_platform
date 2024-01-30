@@ -1,5 +1,4 @@
 import time
-from functools import wraps
 import subprocess
 import statistics
 import shlex
@@ -13,7 +12,9 @@ import requests
 from config import G5Conf
 import math
 import pickle
+import random
 from rq import get_current_job
+from rq.job import Job
 from cpumem import _cpu_usage as vcpu
 from cpumem import _system_usage as cpu
 
@@ -28,7 +29,13 @@ from scapy.all import *
 from config import tnor_stats,kpis,myprint
 from config import ue_ip
 from config import tcpdump_filter
+from config import logged, mytime,myprint,errorResponse
 
+from regresults import registerkpis as reg_kpi
+from rq.registry import StartedJobRegistry
+
+from config  import q as myqueue
+from config import connRedis as myredis
 Logfile = G5Conf['Logpath']
 Logpath = G5Conf['Logpath']
 ServerPort = G5Conf['iperfport']
@@ -46,18 +53,6 @@ def ff(src,dst):
     return f'{src}:{dst}'
 
 
-def mytime():
-  now = datetime.now()
-  return(str(now.date())+" "+str(now.time()).split('.')[0])
-
-
-
-def logged(func):
-    @wraps(func)
-    def with_logging(*args, **kwargs):
-        myprint(mytime(),"The function <"+func.__name__ + "> was called")
-        return func(*args, **kwargs)
-    return with_logging
 
 
 def update(src,dst,t,data):
@@ -102,15 +97,42 @@ def traffic_monitor_callback(pkt):
           if i in pkt.src or i in pkt.dst:
             update(pkt.src,pkt.dst,pkt.time,pkt.len)
 
-
 @logged
-def StartExp(uid):
+def StartExpData(uid):
+    runtime=60
+    job = get_current_job()
+    while job.meta['active'] and runtime>0:
+        #print(mytime(),f'Job is active {job.meta["active"]}')
+        time.sleep(1)
+        job.refresh()
+        runtime-=1
+    
+@logged
+def StartExp(meta):
   results = {}
   job = get_current_job()
-  myprint(mytime(),f'{job.meta["active"]}')
+  print(job)
+  job.meta['active'] = 1
+  job.meta['use_case'] = meta['use_case']
+  job.meta['test_case'] = meta['test_case']
+  job.meta['test_case_id'] = meta['test_case_id']
+  print(job.meta)
+  job.save_meta()
+  
+  registry = StartedJobRegistry(queue=myqueue)
+  print('IDs in registry %s' % registry.get_job_ids())
+  q = registry.get_queue()
+  #for job in q:
+   #   print(f'job.id:{job.id}')
+  for i in registry.get_job_ids():
+      job = q.fetch_job(i)
+      print(f'job.id:{job.id},uid={job.meta["active"]}')
+  
+  #myprint(mytime(),f'{job.meta["active"]}')
   results['start_time'] = datetime.now()
-  results['uid'] = uid
-  use_case = job.meta['use_case']
+  results['uid'] = meta['test_case_id']
+  use_case = meta['use_case']
+  uid = meta['test_case_id']
   
   process = subprocess.Popen(shlex.split(f'cat /sys/class/net/{nic}/statistics/tx_bytes'),stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
   for line in process.stdout:
@@ -124,12 +146,13 @@ def StartExp(uid):
   results['rx_max'] = 0
   results['MEC CPU max'] = round(cpupercent(use_case),5)
   results['MEC MEM max'] = round(100*cpumem(use_case,"MEM")/total_mem(),5)
-  results['Availebility'] = availebility()
+  results['availebility'] = availebility()
 
   #kill measurement after 1 hour
-  runtime = 3600
+  runtime = 60
 
-  p = subprocess.Popen(['tcpdump',  '-i', nic, tcpdump_filter,'-w', f'{Logpath}/cap_{uid}.pcap'], stdout=subprocess.PIPE)
+  myprint(mytime(),f'logging to file cap_{uid}')
+  p = subprocess.Popen(['tcpdump',  '-i', nic, '-s96',tcpdump_filter,'-w', f'{Logpath}/cap_{uid}.pcap'], stdout=subprocess.PIPE)
   
   while job.meta['active'] and runtime>0:
     #print(mytime(),f'Job is active {job.meta["active"]}')
@@ -162,9 +185,17 @@ def StartExp(uid):
       results['MEC MEM max'] = tmp
     results['availebility'] = availebility()
 
+  print(f'runtime:{runtime}')
   p.terminate()
-  for p in PcapReader(f'{Logpath}/cap_{uid}.pcap'):
-    traffic_monitor_callback(p)
+  try:
+    os.makedirs(f'{Logpath}/cap_{uid}.pcap',exist_ok=True)
+    for p in PcapReader(f'{Logpath}/cap_{uid}.pcap'):
+        if p:
+            traffic_monitor_callback(p)
+  except Exception as error:
+    myprint(mytime(),f'no packets captured for throughput measurement')
+    print(mytime(),f'No packets captured in file: {Logpath}/cap_{uid}.pcap')
+
 
   peak_ul = 0
   peak_dl = 0
@@ -203,7 +234,10 @@ def StartExp(uid):
   job.meta['kpis'] = uc_kpi
   job.save_meta()
   job.refresh()
-    
+  #TODO;
+  time.sleep(random.random()*0.5)
+  #reg_kpi(job.meta)
+  
   myprint(mytime(),f'Ending job.......')
   myprint(mytime(), tnor_stats)
   myprint(mytime(),f'{ip_dl}: UL:{human(peak_ul)} - {ip_ul}:DL:{human(peak_dl)}')

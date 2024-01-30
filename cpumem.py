@@ -1,6 +1,8 @@
 import logging
-from config import G5Conf
+from config import G5Conf,mytime
 import subprocess
+from netmiko import ConnectHandler
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -20,6 +22,76 @@ host_num_cpus = None
 last_cpu_usage = None
 last_system_usage = None
 
+PLATFORM = os.getenv('Platform')
+
+#------------------------ustack functions
+if PLATFORM == 'INTEL1':
+
+    mediahub_passNO = {
+            'device_type': 'linux',
+            'ip': '',
+            'username': '',
+            'password': '',
+            'port': 22,
+            'verbose':True
+            }
+
+
+def ssh_connect(linux):
+  connection = ConnectHandler(**linux)
+  return connection
+def ssh_cmd(connection,cmd):
+  output = connection.send_command(cmd)
+  return output
+def ssh_close(connection):
+  connection.disconnect()
+
+def sshcmd(cmd,vm):
+  #print(mytime(),f"sshcmd" ,cmd)
+  medipass = mediahub_passNO
+  medipass['ip'] = vm['IP']
+  medipass['username'] = os.getenv('MS_USER')
+  medipass['password'] = os.getenv('MS_PASSWORD')
+      
+  try:
+    connection = ssh_connect(medipass)
+    output = ssh_cmd(connection,cmd)
+    ssh_close(connection)
+    return output 
+  except Exception as error:
+    return errorResponse("Failed to run sshcmd",error)
+
+def _ustackcpu(uc):
+  c = 0
+  for i in G5Conf['ustack']:
+    #print(i,G5Conf['ustack'][i])
+    ct = sshcmd('cat /sys/fs/cgroup/cpu/cpuacct.usage',G5Conf['ustack'][i])
+    #print(ct)
+    c+=int(ct)
+  return c
+
+#microstack.openstack flavor list - vCPU allocated
+def _get_ustack_cpus():
+  c = 0
+  for i in G5Conf['ustack']:
+    c += G5Conf['ustack'][i]['cpu']
+  return c
+
+#microstack.openstack flavor list - RAM allocated
+def _get_ustack_mem():
+  c = 0
+  for i in G5Conf['ustack']:
+    c += G5Conf['ustack'][i]['ram']
+  return c*8*1e6
+
+
+def _ustackmem(uc):
+  c = 0
+  for i in G5Conf['ustack']:
+    ct = sshcmd('cat /sys/fs/cgroup/memory/memory.usage_in_bytes',G5Conf['ustack'][i])
+    c+=int(ct)
+  return c
+#-----------------------------------end ustack functions
 
 def _kubecpu(i,uc):
     return f'microk8s.kubectl exec -it {i} -n {G5Conf[f"{uc}-netapp"]} -- /usr/bin/cat /sys/fs/cgroup/cpu/cpuacct.usage'
@@ -28,20 +100,23 @@ def _kubemem(i,uc):
     
 
 def get_data(uc,measure):
-    cmd = f'/snap/bin/microk8s.kubectl describe pods -n {G5Conf[f"{uc}-netapp"]} |/usr/bin/grep ^Name:|/usr/bin/sed "s/.*://" | /usr/bin/tr -d " "'
-    r= subprocess.run([f'{cmd}'], capture_output=True, shell=True,text=True)
-    lsum=0
-    
-    for i in r.stdout.split('\n')[0:-1]:
+    lsum = 0
+    if os.getenv('PLATFORM') == 'INTEL1':
         if measure == "MEM":
-            cc = _kubemem(i,uc)
-            #f'microk8s.kubectl exec -it {i} -n {G5Conf[f"{uc}-netapp"]} -- /usr/bin/cat /sys/fs/cgroup/cpu/cpuacct.usage'
+            lsum = _ustackmem(uc)
         elif measure == "CPU":
-            cc = _kubecpu(i,uc)
-            
+            lsum = _ustackcpu(uc)
+    elif os.getenv('PLATFORM') == 'HP4': 
+        cmd = f'/snap/bin/microk8s.kubectl describe pods -n {G5Conf[f"{uc}-netapp"]} |/usr/bin/grep ^Name:|/usr/bin/sed "s/.*://" | /usr/bin/tr -d " "'
+        r= subprocess.run([f'{cmd}'], capture_output=True, shell=True,text=True)
+        for i in r.stdout.split('\n')[0:-1]:
+            if measure == "MEM":
+                cc = _kubemem(i,uc)
+                #f'microk8s.kubectl exec -it {i} -n {G5Conf[f"{uc}-netapp"]} -- /usr/bin/cat /sys/fs/cgroup/cpu/cpuacct.usage'
+            elif measure == "CPU":
+                cc = _kubecpu(i,uc)
         r = subprocess.run([f'{cc}'], capture_output=True, shell=True,text=True)
         if r.stdout != '':
-
             lsum+= int(r.stdout)
     return lsum
 
@@ -87,10 +162,14 @@ def cpu_percent(uc):
         return 0.0
 
 def get_num_cpus(uc):
+  if os.getenv('PLATFORM') != 'INTEL1':
     if uc == "UC1":
         return 1
     else:
         return 6
+  else:
+    return _get_ustack_cpus()
+
     
     #return _host_num_cpus()
 
@@ -130,11 +209,16 @@ def _system_usage():
     return usage_ns
 
 def _system_mem():
+  if os.getenv('PLATFORM') == 'INTEL1':
+    tot = _get_ustack_mem()
+  else:
     mem_summary_str = open(MEM_TOTAL_PATH).read().split("\n")[0]
     #get total of memory installed
     #tot = mem_summary_str.split(' ')[-2:-1][0]
+    tot=mem_summary_str
     #return mem in bytes
-    return int(mem_summary_str)
+  return int(tot)
+
 
 def _virtual_mem():
     mem_summary_str = open(MEM_USAGE_PATH_V2).read().split("\n")[0]

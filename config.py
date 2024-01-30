@@ -1,17 +1,46 @@
 import os
+from functools import wraps
 from dotenv import load_dotenv
-
+import time
+from datetime import datetime
+from flask import jsonify
+import redis
+from rq import Worker, Queue, Connection
+import subprocess
 
 load_dotenv()
 
+expq={}
 
 os_platform = os.getenv('PLATFORM')
+run_jobs={}
 
 def Merge(dict1, dict2):
     res = {**dict1, **dict2}
 
     return res
 
+def trim(s):
+    return s.lstrip().rstrip()
+
+
+def flavor():
+    cmd = f'microstack.openstack flavor list|grep einbliq'
+    r=subprocess.run(f'{cmd}',capture_output=True,shell=True,text=True)
+    ee = r.stdout.split('|')[1:-1]
+    flavors={}
+    data={}
+    #data['ID']=trim(ee[0])                                                                                                                      
+    data['ram']=int(trim(ee[2]))
+    data['cpu']=int(trim(ee[5]))
+    flavors[trim(ee[1])]=data
+    data={}
+    #data['ID']=trim(ee[8])                                                                                                                      
+    data['ram']=int(trim(ee[10]))
+    data['cpu']=int(trim(ee[13]))
+    flavors[trim(ee[9])]=data
+
+    return {'ustack':server(flavors)}
 
 if os_platform == 'DOCKER':
     RedisConf = {'redishost':'172.240.20.3', 'redisport':6379}
@@ -25,7 +54,7 @@ elif os_platform == 'INTEL1':
     RedisConf = {'redishost':'10.5.1.2', 'redisport':30379}
     IperfConf = {'iperfhost':'10.5.1.2','iperfport':30955}
 
-    LocalConf = {'Platform':'INTEL1','Logpath':'/home/tnor/5GMediahub/Measurements/Service/Logs','logfile1':'iperf.cvs','logfile2':'iperf2.cvs','logfiletemp':'logfiletmp','nic':'ensf260c'}
+    LocalConf = {'Platform':'INTEL1','Logpath':'/home/tnor/5GMediahub/Measurements/Service/Logs','logfile1':'iperf.cvs','logfile2':'iperf2.cvs','logfiletemp':'logfiletmp','nic':'ens260f0'}
     owampConf = {'owping':'/opt/bin/owping','owconf':'-c100 -i0.1 -L10 -s0 -t -AO -nm','owampdest':f'{IperfConf["iperfhost"]}'}
 
 elif os_platform == 'HP4':
@@ -46,6 +75,9 @@ G5Conf = Merge(G5Conf,owampConf)
 G5Conf = Merge(G5Conf,pingConf)
 G5Conf = Merge(G5Conf,uc)
 
+if os_platform == 'INTEL1':
+    microstack = flavor()
+    G5Conf = Merge(G5Conf,microstack)
 
 PEAK_UL = 126
 PEAK_DL= 794
@@ -95,7 +127,15 @@ for i in ue_ip:
     ips[ue_ip[i]]=i
 
 
-tcpdump_filter=f'net {ips["mda-go"]}.0/24 or net {ips["5G SA fbu"]}.0/24'
+tcpdump_filter=f"net {ips['mda-go']}.0/24 or net {ips['5G SA fbu']}.0/24"
+
+def clean_osgetenv(s):
+    try:
+        if ord(s[0:1]) == 8220:
+            return(s[1:-1])
+    except:
+        pass
+    return s
 
 def myprint(*args):
     line = ' '.join([str(a) for a in args])
@@ -104,7 +144,54 @@ def myprint(*args):
     f.write(line+'\n')
     f.close()
     print(line)    
+
+def mytime():
+  now = datetime.now()
+  return(str(now.date())+" "+str(now.time()).split('.')[0])
+
+
+
+def logged(func):
+    @wraps(func)
+    def with_logging(*args, **kwargs):
+        myprint(mytime(),"The function <"+func.__name__ + "> was called")
+        return func(*args, **kwargs)
+    return with_logging
+
+def errorResponse(message, error):
+    myprint(mytime(),f'{message}: {error}')
+    return jsonify({'Status': 'Error', 'Message': message, 'Error': f'{error}'}), 403
+
+@logged    
+def connect_redis(url):
+    try:
+        conn = redis.from_url(url)
+        return conn
+    except Exception as error:
+        return errorResponse("Could not connect to redis",error)
+@logged
+def connRedis():
+    try:
+        #redisPort=get_redisport()
+        #redis_url = os.getenv('REDIS_URL', 'redis://localhost:'+redisPort)
+        host = G5Conf['redishost']
+        port = G5Conf['redisport']
+        redis_url = f'redis://{host}:{port}'
+        myprint(mytime(),"redis url: ",redis_url)
+        return connect_redis(redis_url)
     
+    except Exception as error:
+        return errorResponse("Failed main redis connection",error)
+
+
+
+      
+#q = Queue('low',connection = connRedis(), default_timeout = 7200)
+
+
+q_start = Queue('low',connection = connRedis(), default_timeout = 7200)
+q_stop = Queue('default',connection = connRedis(), default_timeout = 7200)
+
 if __name__ == '__main__':
     ss=f'tcpdump -i {G5Conf["nic"]} {tcpdump_filter} -w captest.cap'
     print(ss)

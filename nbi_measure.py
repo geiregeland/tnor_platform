@@ -1,5 +1,6 @@
 import os
 import time
+from datetime import timedelta
 import subprocess
 from flask import Flask, session, flash, json, request,jsonify,redirect
 from rq import Queue
@@ -17,67 +18,34 @@ from rq import Worker, Queue, Connection
 import iperf3 as ip3
 from pathlib import Path
 import shlex
-from mmapp import Startsample,StartExp,rxtx,get_kpis,logged
+from mmapp import Startsample,StartExp,rxtx,get_kpis
+
 
 from dotenv import load_dotenv as loadenv
-from config import myprint
+from config import myprint,logged, mytime,errorResponse
 from config import G5Conf
 import requests
 import rq_dashboard
+from config import clean_osgetenv
+import random
+from config import q,scheduler
+from config import run_jobs
 
 Logfile = G5Conf['Logpath']
 PLATFORM = G5Conf['Platform']
 
+server={'UC1':'10.5.1.4','UC2':'10.5.1.4','UC3':'10.5.1.2'}
+
 if PLATFORM == 'HP4':
     import flask_monitoringdashboard as dashboard
 
-def clean_osgetenv(s):
-    try:
-        if ord(s[0:1]) == 8220:
-            return(s[1:-1])
-    except:
-        pass
-    return s
 
 ServerPort = G5Conf['iperfport']
 ServerAddress = G5Conf['iperfhost']
 MeasurePort = G5Conf['mport']
     
 #q = Queue(connection = myworker.connRedis(), default_timeout = 7200)
-def mytime():
-  now = datetime.now()
-  return(str(now.date())+" "+str(now.time()).split('.')[0])
 
-
-def errorResponse(message, error):
-    myprint(mytime(),f'{message}: {error}')
-    return jsonify({'Status': 'Error', 'Message': message, 'Error': f'{error}'}), 403
-
-@logged    
-def connect_redis(url):
-    try:
-        conn = redis.from_url(url)
-        return conn
-    except Exception as error:
-        return errorResponse("Could not connect to redis",error)
-@logged
-def connRedis():
-    try:
-        #redisPort=get_redisport()
-        #redis_url = os.getenv('REDIS_URL', 'redis://localhost:'+redisPort)
-        host = G5Conf['redishost']
-        port = G5Conf['redisport']
-        redis_url = f'redis://{host}:{port}'
-        myprint(mytime(),"redis url: ",redis_url)
-        return connect_redis(redis_url)
-    
-    except Exception as error:
-        return errorResponse("Failed main redis connection",error)
-
-
-
-      
-q = Queue('low',connection = connRedis(), default_timeout = 7200)
 
 app = Flask(__name__)
 if PLATFORM == 'HP4':
@@ -102,58 +70,6 @@ app.register_blueprint(rq_dashboard.blueprint,url_prefix='/rq')
 
 
 
-@logged
-def get_token():
-    try:
-        url = 'https://iambackend.netapps-5gmediahub.eu/realms/5GMediaHUB/protocol/openid-connect/token'
-        headers = { 'Content-Type': 'application/x-www-form-urlencoded'}
-        data = {
-            'grant_type': 'client_credentials',
-            'client_id': 'tnor-client-collector',
-            'client_secret': clean_osgetenv(os.getenv('CLIENT_SECRET'))
-        }
-    
-
-        response = requests.post(url, headers=headers, data=data)
-
-        myprint(mytime(),"Get token response", response.status_code)
-        token=response.json()['access_token']
-        return token
-    except Exception as error:
-        return errorResponse("Failed <get_token>",error)
-
-@logged
-def get_timestamp():
-    return datetime.utcnow().isoformat().split('.')[0]+'Z'
-
-@logged
-def registerkpis(meta):
-    try:
-        test_case = meta['test_case']
-        use_case = meta['use_case']
-        test_case_id = meta['test_case_id']
-        uc_kpis = meta['kpis']
-    
-        headers={'Content-Type': 'application/json', 'Authorization':''}
-        headers['Authorization'] = 'Bearer ' + get_token()
-    
-        data={'test': {'use_case': f'{use_case}', 'test_case': f'{test_case}', 'test_case_id': f'{test_case_id}'}, 'data': {'timestamp': f'{get_timestamp()}', 'kpis': uc_kpis['kpis']}}
-    
-        myprint(mytime(),"Data to register=",data)
-        r=requests.post('http://5gmediahub.vvservice.cttc.es/5gmediahub/data-collector/kpis',headers=headers,json=data)
-        myprint(mytime(),"Register response:",r)
-    except Exception as error:
-        return errorResponse("Failed call <registerkpis>",error)
-
-@logged
-def registerkpis_test(data):
-    headers={'Content-Type': 'application/json', 'Authorization':''}
-    headers['Authorization'] = 'Bearer ' + get_token()
-    
-    
-    myprint(mytime(),data)
-    r=requests.post('http://5gmediahub.vvservice.cttc.es/5gmediahub/data-collector/kpis',headers=headers,json=data)
-    myprint(mytime(),r)
 
 
 
@@ -167,13 +83,24 @@ def parameters():
         use_case = arguments['use_case']
         test_case = arguments['test_case']
         test_case_id=arguments['test_case_id']
+
+        myprint(mytime(),"json=",request.json)
+        myprint(mytime(),f'action:{action}, use_case:{use_case}, test_case:{test_case},test_case_id:{test_case_id}')
         
         if request.method == 'POST':
             if action == 'start':
-                r = requests.get(f'http://10.5.1.4:9055/startexperiment/',json={'use_case':use_case,'test_case':test_case,'test_case_id':test_case_id})
+                r = requests.get(f'http://{server[use_case]}:9055/startexperiment/',json={'use_case':use_case,'test_case':test_case,'test_case_id':test_case_id})
+                myprint(mytime(),f'start status:{r.content}')
             elif action == 'stop':
-                r = requests.get(f'http://10.5.1.4:9055/stopexperiment/',json={'use_case':use_case,'test_case':test_case,'test_case_id':test_case_id})
-        return f'/parameters: ok'
+                r = requests.get(f'http://{server[use_case]}:9055/stopexperiment/',json={'use_case':use_case,'test_case':test_case,'test_case_id':test_case_id})
+                myprint(mytime(),f'stop status:{r.content}')
+        elif request.method == 'GET':
+            fetched_job = q.fetch_job(test_case_id)
+            
+            print(f"job id={id}, status={fetched_job.get_status()},  results={fetched_job.result}")
+
+        
+        return f'200 OK'
     
     except Exception as error:
         return errorResponse("Failed call to /parameters",error)
@@ -193,25 +120,40 @@ def startexp():
         #return f'parameters: ok'
         #uid = uuid.uuid4().hex
         uid = test_case_id
+        meta={}
+        meta['active'] = 1
+        meta['use_case'] = use_case
+        meta['test_case'] = test_case
+        meta['test_case_id'] = uid
 
-        job = Job.create(StartExp,args=[uid],id=uid,connection=connRedis())
-        job.meta['active'] = 1
-        job.meta['use_case'] = use_case
-        job.meta['test_case'] = test_case
-        job.meta['test_case_id'] = uid
         
-        job.save_meta()
+        job = q.enqueue_at(datetime.now(), StartExp,args=[meta])
+        print(f'job ID:{job.id}')
+        jj={}
+        jj['instance'] = job
+        jj['meta'] = meta
+        run_jobs[job.id] = jj
+        
+        #job = Job.create(StartExpData,args=[uid],id=uid,connection=connRedis())
+        #job.meta['active'] = 1
+        #job.meta['use_case'] = use_case
+        #job.meta['test_case'] = test_case
+        #job.meta['test_case_id'] = uid
+        #job.meta['mjob'] = mjob.id
+        
+        #job.save_meta()
         
         #delta = timedelta(minutes = 5)
         #at=datetime.now()+delta
-        r=q.enqueue_job(job)
-        return f'startexperiment: ok'
+        #r=q.enqueue_job(job)
+        return f'200 OK'
     except Exception as error:
         return errorResponse("Failed call to /startexperiment",error)
 
 @app.route('/stopexperiment/',methods = ['GET','POST'])
 @logged
 def stoptexp():
+    global run_jobs
     try:
         arguments = request.json
 
@@ -221,24 +163,32 @@ def stoptexp():
         
         #uid = uuid.uuid4().hex
         uid = test_case_id
-
+        for i in run_jobs:
+            if run_jobs[i]['meta']['test_case_id'] == uid:
+                job = run_jobs[i]['instance']
+                print(f'found job:{i}')
+                print(job)
+                break
         #uid = uuid.uuid4().hex
-        job = Job.fetch(uid,connection=connRedis())
-        
+        #job = Job.fetch(uid,connection=connRedis())
+        print(f'job.meta.active:{job.meta}')
         #job = Job.create(startexp,args=[uid,delta],id=uid,connection=connRedis())
         job.meta['active'] = 0
+        print("her")
         job.save_meta()
-        time.sleep(10)
+        #time.sleep(10)
+        print("her2")
         job.refresh()
+        print("her3")
         #delta = timedelta(minutes = 5)
         #at=datetime.now()+delta
         #r=q.enqueue_job(job)
         
         myprint(mytime(),job.meta)
         myprint(mytime(),"about to register kpis......")
-        registerkpis(job.meta)
+        #registerkpis(job.meta)
 
-        return f'stopexperiment: ok'
+        return f'200 OK'
     except Exception as error:
         return errorResponse("Failed call to /stopexperiment",error)
 
@@ -287,6 +237,7 @@ def stoptexpnorep():
         return f'stopexperimentnorep: ok'
     #except Exception as error:
         #return errorResponse("Failed call to /stopexperimentnorep",error)
+
 
 
 #----------------------------------------- old stuff below ----------------------------------
