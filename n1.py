@@ -62,6 +62,10 @@ app.register_blueprint(rq_dashboard.blueprint,url_prefix='/rq')
 @app.route('/v1/parameters',methods=['POST','GET'])
 @logged
 def parameters():
+    print(request)
+    print(request.form)
+    
+    myprint(mytime(),request)
     try:
         arguments = request.json
         action = arguments['action']

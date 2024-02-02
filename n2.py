@@ -13,7 +13,7 @@ import pickle
 import random
 from rq import get_current_job
 from rq.job import Job
-from scapy.all import *
+from scapy.all import rdpcap,IP
 
 from cpumem import _cpu_usage as vcpu
 from cpumem import _system_usage as cpu
@@ -176,10 +176,10 @@ def register_kpi(meta):
     results=meta['results']
     job = get_current_job()
     try:
-        os.makedirs(f'{Logpath}/cap_{uid}.pcap',exist_ok=True)
-        for p in PcapReader(f'{Logpath}/cap_{uid}.pcap'):
+        os.makedirs(f'{Logpath}',exist_ok=True)
+        for p in rdpcap(f'{Logpath}/cap_{uid}.pcap'):
             if p:
-                traffic_monitor_callback(p)
+                traffic(p)
     except Exception as error:
         myprint(mytime(),f'no packets captured for throughput measurement')
         #print(mytime(),f'No packets captured in file: {Logpath}/cap_{uid}.pcap')
@@ -190,16 +190,16 @@ def register_kpi(meta):
     ip_dl=''
     ip_ul=''
     for i in throughput:
-        if throughput[i]['peak']>0:
+        if len(throughput[i].series)>0:
             src,dst = i.split(':')
             for j in ue_ip:
                 if j in src:
-                    peak = throughput[i]['peak']
+                    peak = throughput[i].max()
                     if peak > peak_ul:
                         peak_ul = peak
                         ip_ul=src
                 if j in dst:
-                    peak = throughput[i]['peak']
+                    peak = throughput[i].max()
                     if peak > peak_dl:
                         peak_dl = peak
                         ip_dl = dst
@@ -274,9 +274,9 @@ def update(src,dst,t,data):
 
 def human(num):
     for x in ['', 'k', 'M', 'G']:
-        if num < 1000.:
+        if num < 1000:
             return f'{num*8:3.1f} {x}bps'
-        num /= 1000.
+        num = num/1000
     return  f'{num*8:3.1f} {x}bps'
 
 
@@ -288,6 +288,93 @@ def traffic_monitor_callback(pkt):
         for i in ue_ip:
           if i in pkt.src or i in pkt.dst:
             update(pkt.src,pkt.dst,pkt.time,pkt.len)
+
+class Measure:
+    def __init__(self,src_dst):
+        self.ss=0
+        self.t_prev=0
+        self.prev=0
+        self.series=[]
+        self.srcdst=src_dst
+        self.t_start=0
+        self.t_end=0
+        self.t_max=0
+        self.t_min=0
+        self.t_mean=0
+        self.t_len=0
+        
+    def time_delta_one_ms(self,pkt):
+        return self.ss+(pkt.time-self.prev)*1000<100        
+    def add_to_time_window(self,pkt):
+        self.ss+=(pkt.time-self.prev)*1000
+        self.t_prev+=int(pkt[IP].len)
+        self.t_len+=int(pkt[IP].len)
+        return
+
+    def add_series(self,pkt):
+        if self.ss!=0:
+            self.series.append(self.t_prev*1000/self.ss)
+        else:
+            delta=(pkt.time-self.prev)*1000
+            self.series.append(self.t_prev*1000/delta)
+        self.ss=(pkt.time-self.prev)*1000
+        self.t_prev=int(pkt[IP].len)
+
+        return
+    def set_prev(self,pkt):
+        self.prev=pkt.time
+        return
+    def set_start(self,pkt):
+        self,t_start=pkt.time
+    def set_end(self,pkt):
+        self.t_end=0
+    def max(self):
+        if len(self.series)>2:
+            t=self.series
+            t.sort()
+            return float(str(t[-2:-1][0]))
+            #return max(self.series)
+        else:
+            return 0
+    def peak(self):
+        if len(self.series):
+            return max(self.series)
+        else:
+            return 0
+    def min(self):
+        if len(self.series):
+            return float(str(min(self.series)))
+        else:
+            return 0
+    def mean(self):
+        if len(self.series):
+            return self.t_len/(self.t_end-self.t_start)
+            #return sum(self.series)/len(self.series)
+        else:
+            return 0
+    def bytes(self):
+        return self.t_len
+    
+def traffic(pkt):
+    global throughput
+    
+    if IP in pkt:
+        ip = pkt[IP]
+        for i in ue_ip:
+            if i in ip.src or i in ip.dst:
+                index=ff(ip.src,ip.dst)
+                if index not in throughput:
+                    throughput[index] = Measure(pkt)
+                    throughput[index].t_start=pkt.time
+                if throughput[index].prev>0:
+                    if throughput[index].time_delta_one_ms(pkt):
+                        throughput[index].add_to_time_window(pkt)
+                    else:
+                        throughput[index].add_series(pkt)
+
+                throughput[index].prev=pkt.time
+                throughput[index].t_end=pkt.time
+                break
 
 
 @logged

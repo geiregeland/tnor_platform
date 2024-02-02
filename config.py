@@ -121,13 +121,13 @@ kpis = {"kpis":[{"name":"CKPI-1","value":f"{PEAK_UL}","unit":"Mbps"},
 ]
 }
 
-ue_ip = {'10.7.0':'mda-go','10.6.66':'5G SA fbu'}
+ue_ip = {'10.7.0':'mda-go','10.6.66':'5G SA fbu','192.168.240':'VPN'}
 ips={}
 for i in ue_ip:
     ips[ue_ip[i]]=i
 
 
-tcpdump_filter=f"net {ips['mda-go']}.0/24 or net {ips['5G SA fbu']}.0/24"
+tcpdump_filter=f"net {ips['mda-go']}.0/24 or net {ips['5G SA fbu']}.0/24 or net {ips['VPN']}.0/24"
 
 def clean_osgetenv(s):
     try:
