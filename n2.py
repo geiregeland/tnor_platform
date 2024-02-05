@@ -123,6 +123,18 @@ def Start(meta):
                 #do_measure()
                 #job.meta['q'][key]['checked']='OK'
                 #job.save_meta()
+            #elif gstat(value) == 'RUN_REPORT':
+            #    p_tcpdump[key].terminate()
+            #    report_job = Job.create(register_kpi,args=[meta],id=i,connection=myredis())
+            #    r=q_stop.enqueue_job(report_job)
+            #    ii=int(value['report_index'])
+            #TODO: set report_index if RUN_REPORT
+            #    ii+=1
+            #    value['report_index']=ii
+            #    p = subprocess.Popen(['tcpdump',  '-i', nic, '-s96',tcpdump_filter,'-w', f'{Logpath}/cap_{key}_{ii}.pcap'], stdout=subprocess.PIPE)
+   #             p_tcpdump[key] = p
+
+                
             elif gstate(value) == 'START':
                 myprint(mytime(),"New job started: ",meta)
 
