@@ -356,25 +356,32 @@ def Stop(meta):
     global Experiments
     test_case_id = meta['test_case_id']
     
-    Experiments[test_case_id].stop()
-    return 0
+    try:
+        Experiments[test_case_id].stop()
+        return 0
+    except:
+        myprint(mytime(),f'Stop error - no test_case_id found:{test_case_id}')
+    return -1
 
 
 
     
 def Start(meta):
     global Experiments
-    test_case_id = meta['test_case_id']
+    try:
+        test_case_id = meta['test_case_id']
     
-    experiment=ExperimentObj(meta)
+        experiment=ExperimentObj(meta)
     
-    experiment.start()
+        experiment.start()
     
-    myprint(mytime(),"New measurement started: ",test_case_id)
+        myprint(mytime(),"New measurement started: ",test_case_id)
 
-    Experiments[test_case_id]=experiment
-
-    return 0
+        Experiments[test_case_id]=experiment
+        return 0
+    except:
+        myprint(mytime(), f'Could not start experiment {test_case_id}')
+    return -1
 
 
 

@@ -1,7 +1,7 @@
 import os
 import time
 import subprocess
-from flask import Flask, session, flash, json, request,jsonify,redirect
+from flask import Flask, session, flash, json, request,jsonify,redirect,Response
 from rq.job import Job 
 from datetime import datetime,timedelta
 import redis
@@ -97,8 +97,7 @@ def parameters():
             
             print(f"job id={id}, status={fetched_job.get_status()},  results={fetched_job.result},meta:{fetched_job.meta}")
 
-        
-        return f'200 OK'
+        return Response(r.content.decode('utf-8'),r.status_code)
     
     except Exception as error:
         return errorResponse("Failed call to /parameters",error)
@@ -116,8 +115,12 @@ def stop():
     meta['use_case'] = arguments['use_case']
     meta['test_case'] = arguments['test_case']
     meta['test_case_id']=arguments['test_case_id']
+    if Stop(meta)==0:
+        return Response("OK",200)
+    else:
+        return Response("Error: could not stop experiment",500)
     
-    Stop(meta)
+
     return f'OK',200
     uid = test_case_id
     job = q_start.fetch_job('startq')
@@ -148,8 +151,10 @@ def start():
     meta['start'] = get_timestamp()
     meta['state'] = 'START'
     meta['regkpi'] = arguments['regkpi']
-    Start(meta)
-    return f'OK',200
+    if Start(meta)==0:
+        return Response("OK",200)
+    else:
+        return Response("Error: could not start experiment",500)
 
     if len(expq):
         try:
