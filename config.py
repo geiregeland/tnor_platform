@@ -75,9 +75,17 @@ G5Conf = Merge(G5Conf,owampConf)
 G5Conf = Merge(G5Conf,pingConf)
 G5Conf = Merge(G5Conf,uc)
 
-if os_platform == 'INTEL1':
-    microstack = flavor()
-    G5Conf = Merge(G5Conf,microstack)
+microstack = {'ustack': {'einbliq-mcdncache': {'ram': 8192, 'cpu': 8, 'IP': '10.20.20.40'}, 'einbliq-mediaplayout': {'ram': 65536, 'cpu': 32, 'IP': '10.20.20.26'}}}
+G5Conf = Merge(G5Conf,microstack)
+
+def init_ustack():
+    global G5Conf
+    if os.getenv('PLATFORM') == 'INTEL1':
+        myprint(mytime(),"Getting microstack parameters")
+        microstack = flavor()
+        myprint(mytime(),f"Microstack param ready!, {microstack}")
+    else:
+        print("unknown platform")
 
 PEAK_UL = 126
 PEAK_DL= 794
@@ -100,7 +108,7 @@ MEC_MEM_USAGE = 100.0
 tnor_stats ={'CKPI-1':PEAK_UL,'CKPI-2':PEAK_DL,'CKPI-3':MAX_UL,'CKPI-4':MAX_DL,'CKPI-5':E2E_LATENCY,'CKPI-6':TN_LATENCY,'CKPI-7':RAN_LATENCY,'CKPI-8':RAN_SNR,'CKPI-9':UE_PER_M2,'CKPI-10':RELIABILITY,'CKPI-11':PACKET_ERROR_RATE,'CKPI-12':JITTER,'CKPI-13':CAPACITY_UL,'CKPI-14':CAPACITY_DL,'CKPI-15':AVAILEBILITY,'PKPI-11':MEC_CPU_USAGE,'PKPI-12':MEC_MEM_USAGE}
 
 
-kpis = {"kpis":[{"name":"CKPI-1","value":f"{PEAK_UL}","unit":"Mbps"},
+kpis_all = {"kpis":[{"name":"CKPI-1","value":f"{PEAK_UL}","unit":"Mbps"},
 
                 {"name":"CKPI-2","value":f"{PEAK_DL}","unit":"Mbps"},
                 {"name":"CKPI-3","value":f"{MAX_UL}","unit":"Mbps"},
@@ -116,6 +124,29 @@ kpis = {"kpis":[{"name":"CKPI-1","value":f"{PEAK_UL}","unit":"Mbps"},
                 {"name":"CKPI-13","value":f"{CAPACITY_UL}","unit":"MHz"},
                 {"name":"CKPI-14","value":f"{CAPACITY_DL}","unit":"MHz"},
                 {"name":"CKPI-15","value":f"{AVAILEBILITY}","unit":"%"},
+                {"name":"PKPI-11","value":f"{MEC_CPU_USAGE}","unit":"%"},
+                {"name":"PKPI-12","value":f"{MEC_MEM_USAGE}","unit":"%"}
+]
+}
+kpis_txrx = {"kpis":[{"name":"CKPI-1","value":f"{PEAK_UL}","unit":"Mbps"},
+
+                {"name":"CKPI-2","value":f"{PEAK_DL}","unit":"Mbps"},
+                {"name":"CKPI-3","value":f"{MAX_UL}","unit":"Mbps"},
+                {"name":"CKPI-4","value":f"{MAX_UL}","unit":"Mbps"},
+                {"name":"CKPI-5","value":f"{E2E_LATENCY}","unit":"ms"},
+                {"name":"CKPI-6","value":f"{TN_LATENCY}","unit":"ms"},
+                {"name":"CKPI-7","value":f"{RAN_LATENCY}","unit":"ms"},
+                {"name":"CKPI-8","value":f"{RAN_SNR}","unit":"%"},
+                {"name":"CKPI-9","value":f"{UE_PER_M2}","unit":"devices/m2"},
+                {"name":"CKPI-10","value":f"{RELIABILITY}","unit":"%"},
+                {"name":"CKPI-11","value":f"{PACKET_ERROR_RATE}","unit":"%"},
+                {"name":"CKPI-12","value":f"{JITTER}","unit":"ms"},
+                {"name":"CKPI-13","value":f"{CAPACITY_UL}","unit":"MHz"},
+                {"name":"CKPI-14","value":f"{CAPACITY_DL}","unit":"MHz"}
+]
+}
+kpis_cpumem = {"kpis":[
+                {"name":"CKPI-15","value":f"{AVAILEBILITY}","unit":"%"},    
                 {"name":"PKPI-11","value":f"{MEC_CPU_USAGE}","unit":"%"},
                 {"name":"PKPI-12","value":f"{MEC_MEM_USAGE}","unit":"%"}
 ]
@@ -162,14 +193,14 @@ def errorResponse(message, error):
     myprint(mytime(),f'{message}: {error}')
     return jsonify({'Status': 'Error', 'Message': message, 'Error': f'{error}'}), 403
 
-@logged    
+
 def connect_redis(url):
     try:
         conn = redis.from_url(url)
         return conn
     except Exception as error:
         return errorResponse("Could not connect to redis",error)
-@logged
+
 def connRedis():
     try:
         #redisPort=get_redisport()

@@ -20,8 +20,11 @@ from config import G5Conf
 from config import clean_osgetenv
 from config import connRedis
 from config import expq, q_start,q_stop
-from n2 import Start
+#from n2 import Start
+from sniff import Start,Stop
+from config import init_ustack
 
+init_ustack()
 
 Logfile = G5Conf['Logpath']
 PLATFORM = G5Conf['Platform']
@@ -109,7 +112,13 @@ def stop():
     use_case = arguments['use_case']
     test_case = arguments['test_case']
     test_case_id=arguments['test_case_id']
-
+    meta={}
+    meta['use_case'] = arguments['use_case']
+    meta['test_case'] = arguments['test_case']
+    meta['test_case_id']=arguments['test_case_id']
+    
+    Stop(meta)
+    return f'OK',200
     uid = test_case_id
     job = q_start.fetch_job('startq')
     if job != None:
@@ -139,7 +148,9 @@ def start():
     meta['start'] = get_timestamp()
     meta['state'] = 'START'
     meta['regkpi'] = arguments['regkpi']
-    
+    Start(meta)
+    return f'OK',200
+
     if len(expq):
         try:
             dummy=expq[uid]

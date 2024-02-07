@@ -24,17 +24,14 @@ last_system_usage = None
 
 PLATFORM = os.getenv('Platform')
 
-#------------------------ustack functions
-if PLATFORM == 'INTEL1':
-
-    mediahub_passNO = {
-            'device_type': 'linux',
-            'ip': '',
-            'username': '',
-            'password': '',
-            'port': 22,
-            'verbose':True
-            }
+mediahub_passNO = {
+        'device_type': 'linux',
+        'ip': '',
+        'username': '',
+        'password': '',
+        'port': 22,
+        'verbose':True
+        }
 
 
 def ssh_connect(linux):
