@@ -42,6 +42,17 @@ def flavor():
 
     return {'ustack':server(flavors)}
 
+def server(flavors):
+    cmd = f'microstack.openstack server list|grep einbliq'
+    r=subprocess.run(f'{cmd}',capture_output=True,shell=True,text=True)
+    ee = r.stdout.split('|')[1:-1]
+    data={}
+    data[trim(ee[5])]=trim(ee[3].split(', ')[1])
+    data[trim(ee[12])]=trim(ee[10].split(', ')[1])
+    for i in flavors:
+        flavors[i]['IP']=data[i]
+    return flavors
+
 if os_platform == 'DOCKER':
     RedisConf = {'redishost':'172.240.20.3', 'redisport':6379}
     IperfConf = {'iperfhost':'172.240.20.2','iperfport':30955}
