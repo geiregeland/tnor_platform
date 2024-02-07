@@ -83,7 +83,7 @@ class ExperimentObj():
         self.txrx_results={}
         self.cpumem_results={}
     def start(self):
-        p = open_live(nic, 100, 0, 100)
+        p = open_live(nic, 100, 1, 100)
         p.setfilter(tcpdump_filter)
         
         #print("Listening on %s: net=%s, mask=%s, linktype=%d" % (dev, p.getnet(), p.getmask(), p.datalink()))
@@ -249,7 +249,7 @@ class SampleTXRX(Thread):
 
     def run(self):
         while self.active:
-            if time.time()-self.sample>FREQ:
+            if time.time()-self.sample>FREQ/12:
                 tx_samples=[]
                 rx_samples=[]
                 for i,m in self.sniffer.tcpdump.items():
@@ -358,6 +358,7 @@ def Stop(meta):
     
     try:
         Experiments[test_case_id].stop()
+        #Experiments.pop(test_case_id)
         return 0
     except:
         myprint(mytime(),f'Stop error - no test_case_id found:{test_case_id}')
@@ -376,7 +377,7 @@ def Start(meta):
         experiment.start()
     
         myprint(mytime(),"New measurement started: ",test_case_id)
-
+        
         Experiments[test_case_id]=experiment
         return 0
     except:
@@ -471,7 +472,7 @@ def registerkpis(meta):
     #time.sleep(1)
     #r=Start(mm)
     #print(Experiments)
-#    time.sleep(5)
+#    time.sleep(20)
 #    r=Stop(meta)
     #print(Experiments)
     #time.sleep(2)
