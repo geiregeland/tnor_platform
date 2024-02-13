@@ -370,7 +370,13 @@ def Stop(meta):
 def Start(meta):
     global Experiments
     try:
+        # to save resources, use only one open_live process.
+        
+        #if len(Experiments):
+         #   sniffer_p=Expperiments[0].sniffer.pcap
+            
         test_case_id = meta['test_case_id']
+
     
         experiment=ExperimentObj(meta)
     

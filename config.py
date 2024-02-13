@@ -77,6 +77,7 @@ elif os_platform == 'HP4':
 
 
 uc = {'UC1-netapp':'norigin-streaming', 'UC2-netapp':'ektacom-stream-selector','UC3-netapp':'ektacom-stream-selector'}
+ucowner = {'UC1-owner':'norigin', 'UC2-owner':'ektacom-','UC3-owner':'ektacom'}
 
 pingConf = {'clientcmd':'ping -c 12 -i 0.3','mport':9055}
 
@@ -85,6 +86,7 @@ G5Conf = Merge(G5Conf,LocalConf)
 G5Conf = Merge(G5Conf,owampConf)
 G5Conf = Merge(G5Conf,pingConf)
 G5Conf = Merge(G5Conf,uc)
+G5Conf = Merge(G5Conf,ucowner)
 
 microstack = {'ustack': {'einbliq-mcdncache': {'ram': 8192, 'cpu': 8, 'IP': '10.20.20.40'}, 'einbliq-mediaplayout': {'ram': 65536, 'cpu': 32, 'IP': '10.20.20.26'}}}
 G5Conf = Merge(G5Conf,microstack)

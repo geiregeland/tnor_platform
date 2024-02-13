@@ -163,11 +163,21 @@ def get_num_cpus(uc):
     if uc == "UC1":
         return 1
     else:
-        return 6
+        return _getUC_cpus(uc)
   else:
     return _get_ustack_cpus()
 
-    
+def _getUC_cpus(uc):
+  r=subprocess.run(f"/snap/bin/microk8s.kubectl describe nodes -n {G5Conf[f'{uc}-netapp']} |grep {G5Conf[f'{uc}-owner']}|awk" +" '{ print $3}'",capture_output=True,shell=True,text=True)
+  s=0
+  for i in r.stdout.split("\n")[0:-1]:
+      if "m" in i:
+          tmp_i = i.split("m")[0]
+          s+=int(tmp_i)/1000
+      else:
+          s+=int(i)
+  return s
+  
     #return _host_num_cpus()
 
 def _cpu_usage():
