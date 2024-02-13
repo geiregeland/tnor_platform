@@ -112,9 +112,9 @@ def get_data(uc,measure):
                 #f'microk8s.kubectl exec -it {i} -n {G5Conf[f"{uc}-netapp"]} -- /usr/bin/cat /sys/fs/cgroup/cpu/cpuacct.usage'
             elif measure == "CPU":
                 cc = _kubecpu(i,uc)
-        r = subprocess.run([f'{cc}'], capture_output=True, shell=True,text=True)
-        if r.stdout != '':
-            lsum+= int(r.stdout)
+            r = subprocess.run([f'{cc}'], capture_output=True, shell=True,text=True)
+            if r.stdout != '':
+              lsum+= int(r.stdout)
     return lsum
 
 
