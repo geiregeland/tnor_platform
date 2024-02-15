@@ -182,7 +182,7 @@ class SampleCPUMEM(Thread):
         self.uid = meta['test_case_id']
         self.meta=meta.copy()
         self.results['MEC CPU max'] = round(cpupercent(self.use_case),5)
-        self.results['MEC MEM max'] = round(100*cpumem(self.use_case,"MEM")/total_mem(),5)
+        self.results['MEC MEM max'] = round(100*cpumem(self.use_case,"MEM")/total_mem(self.use_case),5)
         self.results['availebility'] = 100*availebility()
 
     def clear_results(self):
@@ -194,8 +194,8 @@ class SampleCPUMEM(Thread):
     def memcpu_sample(self):
         if self.results['MEC CPU max'] < round(cpupercent(self.use_case),5):
             self.results['MEC CPU max'] = round(cpupercent(self.use_case),5)
-        if self.results['MEC MEM max'] < round(100*cpumem(self.use_case,"MEM")/total_mem(),5):
-            self.results['MEC MEM max'] = round(100*cpumem(self.use_case,"MEM")/total_mem(),5)
+        if self.results['MEC MEM max'] < round(100*cpumem(self.use_case,"MEM")/total_mem(self.use_case),5):
+            self.results['MEC MEM max'] = round(100*cpumem(self.use_case,"MEM")/total_mem(self.use_case),5)
         if self.results['availebility'] < 100*availebility():
             self.results['availebility'] = 100*availebility()
 

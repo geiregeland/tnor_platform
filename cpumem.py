@@ -87,6 +87,8 @@ def _ustackmem(uc):
   for i in G5Conf['ustack']:
     ct = sshcmd('cat /sys/fs/cgroup/memory/memory.usage_in_bytes',G5Conf['ustack'][i])
     c+=int(ct)
+    ct = sshcmd('cat /sys/fs/cgroup/memory/memory.kmem.usage_in_bytes',G5Conf['ustack'][i])
+    c+=int(ct)
   return c
 #-----------------------------------end ustack functions
 
@@ -95,7 +97,31 @@ def _kubecpu(i,uc):
 def _kubemem(i,uc):
     return f'microk8s.kubectl exec -it {i} -n {G5Conf[f"{uc}-netapp"]} -- /usr/bin/cat /sys/fs/cgroup/memory/memory.usage_in_bytes'
     
+def _newkubemem(uc):
+  cmd =f'microk8s.kubectl get pods -n {G5Conf[f"{uc}-netapp"]} -o yaml|grep uid'
 
+  r=subprocess.run(cmd,capture_output=True,shell=True,text=True)
+  kubes=[]
+
+  for i in r.stdout.split("\n")[0:-1]:
+      uid=i.split('uid: ')[1]
+      kubes.append(uid)
+
+
+  #u=0
+  #for i in kubes:
+  #    cmd = f'cat /sys/fs/cgroup/memory/kubepods/pod{i}/memory.usage_in_bytes'
+  #    r=subprocess.run(cmd,capture_output=True,shell=True,text=True)
+  #    for i in r.stdout.split("\n")[0:-1]:
+  #        u+=int(i)
+  m=0
+  for i in kubes:
+      cmd = f'cat /sys/fs/cgroup/memory/kubepods/pod{i}/memory.limit_in_bytes'
+      r=subprocess.run(cmd,capture_output=True,shell=True,text=True)
+      for i in r.stdout.split("\n")[0:-1]:
+          m+=int(i)
+  return m
+  
 def get_data(uc,measure):
     lsum = 0
     if os.getenv('PLATFORM') == 'INTEL1':
@@ -215,15 +241,18 @@ def _system_usage():
     usage_ns = total_clock_ticks * 10 ** 7
     return usage_ns
 
-def _system_mem():
+def _system_mem(uc):
   if os.getenv('PLATFORM') == 'INTEL1':
     tot = _get_ustack_mem()
   else:
-    mem_summary_str = open(MEM_TOTAL_PATH).read().split("\n")[0]
-    #get total of memory installed
-    #tot = mem_summary_str.split(' ')[-2:-1][0]
-    tot=mem_summary_str
-    #return mem in bytes
+    if uc =="UC1":
+      mem_summary_str = open(MEM_TOTAL_PATH).read().split("\n")[0]
+      #get total of memory installed
+      #tot = mem_summary_str.split(' ')[-2:-1][0]
+      tot=mem_summary_str
+      #return mem in bytes
+    else:
+      tot=_newkubemem(uc)
   return int(tot)
 
 
