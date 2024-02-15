@@ -1,5 +1,6 @@
 import logging
 from config import G5Conf,mytime,errorResponse
+from config import uc as UC
 import subprocess
 from netmiko import ConnectHandler
 import os
@@ -57,6 +58,68 @@ def sshcmd(cmd,vm):
     return output 
   except Exception as error:
     return errorResponse("Failed to run sshcmd",error)
+
+def kubemem(uc):
+    myuc=uc+'-netapp'
+    cmd =f'microk8s.kubectl get pods -n {UC[myuc]} -o yaml|grep selfLink -A1|grep uid'
+
+    r=subprocess.run(cmd,capture_output=True,shell=True,text=True)
+    kubes=[]
+
+
+    for i in r.stdout.split("\n")[0:-1]:
+        uid=i.split('uid: ')[1]
+        kubes.append(uid)
+
+
+    mfile=f'/sys/fs/cgroup/memory/kubepods'
+    mem={'usage_in_bytes':0,'kmem.usage_in_bytes':0,'limit_in_bytes':0}
+
+    for index in mem:
+        for i in kubes: 
+            if os.path.isfile(f'{mfile}/pod{i}/memory.{index}'):
+                cmd = f'cat {mfile}/pod{i}/memory.{index}'
+            else:
+                cmd = f'cat {mfile}/besteffort/pod{i}/memory.{index}'
+
+            r=subprocess.run(cmd,capture_output=True,shell=True,text=True)
+            for j in r.stdout.split("\n")[0:-1]:
+                mem[index]+=int(j)
+
+    if uc =="UC1":
+        mem_summary_str = open(MEM_TOTAL_PATH).read().split("\n")[0]
+        tot=mem_summary_str
+        mem['limit_in_bytes'] = int(tot)
+    return(mem)
+
+def kubecpu(uc):
+    myuc=uc+'-netapp'
+    cmd =f'microk8s.kubectl get pods -n {UC[myuc]} -o yaml|grep selfLink -A1|grep uid'
+
+    r=subprocess.run(cmd,capture_output=True,shell=True,text=True)
+    kubes=[]
+
+
+    for i in r.stdout.split("\n")[0:-1]:
+        uid=i.split('uid: ')[1]
+        kubes.append(uid)
+
+
+    mfile=f'/sys/fs/cgroup/cpu/kubepods'
+    cpu={'usage':0}
+
+    for index in cpu:
+        for i in kubes: 
+            if os.path.isfile(f'{mfile}/pod{i}/cpuacct.{index}'):
+                cmd = f'cat {mfile}/pod{i}/cpuacct.{index}'
+            else:
+                cmd = f'cat {mfile}/besteffort/pod{i}/cpuacct.{index}'
+
+            r=subprocess.run(cmd,capture_output=True,shell=True,text=True)
+            for j in r.stdout.split("\n")[0:-1]:
+                cpu[index]+=int(j)
+
+    return(cpu['usage'])
 
 def _ustackcpu(uc):
   c = 0
@@ -129,19 +192,27 @@ def get_data(uc,measure):
             lsum = _ustackmem(uc)
         elif measure == "CPU":
             lsum = _ustackcpu(uc)
-    elif os.getenv('PLATFORM') == 'HP4': 
-        cmd = f'/snap/bin/microk8s.kubectl describe pods -n {G5Conf[f"{uc}-netapp"]} |/usr/bin/grep ^Name:|/usr/bin/sed "s/.*://" | /usr/bin/tr -d " "'
-        r= subprocess.run([f'{cmd}'], capture_output=True, shell=True,text=True)
-        for i in r.stdout.split('\n')[0:-1]:
-            if measure == "MEM":
-                cc = _kubemem(i,uc)
-                #f'microk8s.kubectl exec -it {i} -n {G5Conf[f"{uc}-netapp"]} -- /usr/bin/cat /sys/fs/cgroup/cpu/cpuacct.usage'
-            elif measure == "CPU":
-                cc = _kubecpu(i,uc)
-            r = subprocess.run([f'{cc}'], capture_output=True, shell=True,text=True)
-            if r.stdout != '':
-              lsum+= int(r.stdout)
-    return lsum
+    elif os.getenv('PLATFORM') == 'HP4':
+      if measure == "MEM":
+        res=kubemem(uc)
+        tot=res['usage_in_bytes']+res['kmem.usage_in_bytes']
+        return tot
+      else:
+        tot = kubecpu(uc)
+        return tot
+      
+        #cmd = f'/snap/bin/microk8s.kubectl describe pods -n {G5Conf[f"{uc}-netapp"]} |/usr/bin/grep ^Name:|/usr/bin/sed "s/.*://" | /usr/bin/tr -d " "'
+        #r= subprocess.run([f'{cmd}'], capture_output=True, shell=True,text=True)
+        #for i in r.stdout.split('\n')[0:-1]:
+          #if measure == "MEM":
+          #cc = _kubemem(i,uc)
+          #f'microk8s.kubectl exec -it {i} -n {G5Conf[f"{uc}-netapp"]} -- /usr/bin/cat /sys/fs/cgroup/cpu/cpuacct.usage'
+          #if measure == "CPU":
+            #cc = _kubecpu(i,uc)
+            #r = subprocess.run([f'{cc}'], capture_output=True, shell=True,text=True)
+            #if r.stdout != '':
+              #lsum+= int(r.stdout)
+        #return lsum
 
 
 
@@ -245,14 +316,17 @@ def _system_mem(uc):
   if os.getenv('PLATFORM') == 'INTEL1':
     tot = _get_ustack_mem()
   else:
-    if uc =="UC1":
-      mem_summary_str = open(MEM_TOTAL_PATH).read().split("\n")[0]
-      #get total of memory installed
-      #tot = mem_summary_str.split(' ')[-2:-1][0]
-      tot=mem_summary_str
-      #return mem in bytes
-    else:
-      tot=_newkubemem(uc)
+    res=kubemem(uc)
+    tot=res['limit_in_bytes']
+    
+    #if uc =="UC1":
+    #  mem_summary_str = open(MEM_TOTAL_PATH).read().split("\n")[0]
+    #  #get total of memory installed
+    #  #tot = mem_summary_str.split(' ')[-2:-1][0]
+    #  tot=mem_summary_str
+    #  #return mem in bytes
+    #else:
+    #  tot=_newkubemem(uc)
   return int(tot)
 
 
