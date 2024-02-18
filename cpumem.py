@@ -8,7 +8,8 @@ import os
 logger = logging.getLogger(__name__)
 
 CPU_USAGE_PATH = "/sys/fs/cgroup/cpuacct/cpuacct.usage"
-CPU_USAGE_PATH_V2 = "/sys/fs/cgroup/cpu.stat"
+CPU_USAGE_PATH_KUBEPODS = "/sys/fs/cgroup/cpu/kubepods/cpuacct.usage"
+CPU_USAGE_PATH_MACHINE = "/sys/fs/cgroup/cpu/machine/cpuacct.usage"
 PROC_STAT_PATH = "/proc/stat"
 
 MEM_USAGE_PATH='/sys/fs/cgroup/memory/memory.usage_in_bytes'
@@ -233,8 +234,8 @@ def cpu_percent(uc):
     global last_system_usage
     global last_cpu_usage
     try:
-        cpu_usage = get_data(uc,"CPU")
-        system_usage = _system_usage()
+        cpu_usage = get_data(uc,"CPU") # convert to  ns
+        system_usage = _cpu_usage()
         # Return 0.0 on first call.
         if last_system_usage is None:
             cpu_percent = 0.0
@@ -280,6 +281,11 @@ def _getUC_cpus(uc):
 def _cpu_usage():
     """Compute total cpu usage of the container in nanoseconds
     by reading from cpuacct in cgroups v1 or cpu.stat in cgroups v2."""
+    if os.getenv('PLATFORM') != 'INTEL1':
+      return int(open(CPU_USAGE_PATH_KUBEPODS).read())
+    else:
+      return int(open(CPU_USAGE_PATH_MACHINE).read())
+    
     try:
         # cgroups v1
 
@@ -303,6 +309,7 @@ def _system_usage():
     See also the /proc/stat entry here:
     https://man7.org/linux/man-pages/man5/proc.5.html
     """  # noqa
+    
     cpu_summary_str = open(PROC_STAT_PATH).read().split("\n")[0]
     parts = cpu_summary_str.split()
     assert parts[0] == "cpu"

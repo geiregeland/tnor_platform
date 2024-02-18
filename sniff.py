@@ -35,6 +35,10 @@ from cpumem import availebility
 from cpumem import get_data as cpumem
 from cpumem import cpu_percent as cpupercent
 
+from cpumem import _cpu_usage as system_cpu_usage
+from cpumem import _host_num_cpus as host_num_cpus
+from cpumem import get_num_cpus as get_num_vcpus
+
 from config import G5Conf
 from config import tnor_stats,kpis_all,kpis_txrx,kpis_cpumem,myprint
 from config import ue_ip
@@ -156,6 +160,8 @@ class SampleCPUMEM(Thread):
         self.sample=time.time()
         self.t_start=time.time()
         self.t_reg=time.time()
+        self.last_cpu_usage=None
+        self.last_system_usage=None
         Thread.__init__(self)
         
     def run(self):
@@ -190,10 +196,25 @@ class SampleCPUMEM(Thread):
         self.results['MEC CPU max'] = 0
         self.results['MEC MEM max'] = 0
         self.results['availebility'] = 0
-        
+
     def memcpu_sample(self):
-        if self.results['MEC CPU max'] < round(cpupercent(self.use_case),5):
-            self.results['MEC CPU max'] = round(cpupercent(self.use_case),5)
+        cpu_usage = cpumem(self.use_case,"CPU")
+        system_usage= system_cpu_usage()
+        if self.last_system_usage is None:
+            cpu_percent=0.0
+        else:
+            cpu_delta = cpu_usage - self.last_cpu_usage
+            system_delta = (system_usage - self.last_system_usage)/host_num_cpus()
+            quotient = cpu_delta/system_delta
+            cpu_percent = round(quotient * 100 / get_num_vcpus(self.use_case),1)
+        self.last_system_usage = system_usage
+        self.last_cpu_usage = cpu_usage
+        #try:
+            #print(cpu_percent,quotient,cpu_delta,system_delta)
+        #except:
+            #print("first")
+        if self.results['MEC CPU max'] < cpu_percent:
+            self.results['MEC CPU max'] = cpu_percent
         if self.results['MEC MEM max'] < round(100*cpumem(self.use_case,"MEM")/total_mem(self.use_case),5):
             self.results['MEC MEM max'] = round(100*cpumem(self.use_case,"MEM")/total_mem(self.use_case),5)
         if self.results['availebility'] < 100*availebility():
@@ -441,6 +462,7 @@ def get_token():
         token=response.json()['access_token']
         return token
     except Exception as error:
+        myprint(mytime(),response.reason)
         return errorResponse("Failed <get_token>",error)
 
 
