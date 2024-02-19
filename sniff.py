@@ -418,8 +418,8 @@ def register_kpi(meta,mem):
     uid=meta['test_case_id']
     results=meta['results']
     if not mem:
-        tnor_stats['CKPI-1'] = round(results['rx_max']*8/1000000,2)
-        tnor_stats['CKPI-2'] = round(results['tx_max']*8/1000000,2)
+        tnor_stats['CKPI-1'] = round(results['tx_max']*8/1000000,2)
+        tnor_stats['CKPI-2'] = round(results['rx_max']*8/1000000,2)
     else:
         tnor_stats['CKPI-15'] = round(results['availebility'],2)
         tnor_stats['PKPI-11'] = round(results['MEC CPU max'],2)
