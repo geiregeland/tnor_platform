@@ -379,7 +379,7 @@ def Stop(meta):
     
     try:
         Experiments[test_case_id].stop()
-        #Experiments.pop(test_case_id)
+        Experiments.pop(test_case_id)
         return 0
     except:
         myprint(mytime(),f'Stop error - no test_case_id found:{test_case_id}')
