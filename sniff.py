@@ -187,9 +187,9 @@ class SampleCPUMEM(Thread):
         self.use_case = meta['use_case']
         self.uid = meta['test_case_id']
         self.meta=meta.copy()
-        self.results['MEC CPU max'] = round(cpupercent(self.use_case),5)
-        self.results['MEC MEM max'] = round(100*cpumem(self.use_case,"MEM")/total_mem(self.use_case),5)
-        self.results['availebility'] = 100*availebility()
+        self.results['MEC CPU max'] = 0.0 #round(cpupercent(self.use_case),5)
+        self.results['MEC MEM max'] = 0.0 #round(100*cpumem(self.use_case,"MEM")/total_mem(self.use_case),5)
+        self.results['availebility'] = 0.0 #100*availebility()
 
     def clear_results(self):
         self.results['start_time'] = get_timestamp()

@@ -21,7 +21,7 @@ MEM_TOTAL_PATH='/sys/fs/cgroup/memory/kubepods/memory.limit_in_bytes'
 container_num_cpus = None
 host_num_cpus = None
 
-last_cpu_usage = None
+last_cpu_usage = 0.0
 last_system_usage = None
 
 PLATFORM = os.getenv('Platform')
@@ -193,6 +193,7 @@ def get_data(uc,measure):
             lsum = _ustackmem(uc)
         elif measure == "CPU":
             lsum = _ustackcpu(uc)
+        return lsum
     elif os.getenv('PLATFORM') == 'HP4':
       if measure == "MEM":
         res=kubemem(uc)
