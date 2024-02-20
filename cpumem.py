@@ -79,13 +79,11 @@ def kubemem(uc):
     for index in mem:
         for i in kubes: 
             if os.path.isfile(f'{mfile}/pod{i}/memory.{index}'):
-                cmd = f'cat {mfile}/pod{i}/memory.{index}'
+                cmd = f'{mfile}/pod{i}/memory.{index}'
             else:
-                cmd = f'cat {mfile}/besteffort/pod{i}/memory.{index}'
+                cmd = f'{mfile}/besteffort/pod{i}/memory.{index}'
 
-            r=subprocess.run(cmd,capture_output=True,shell=True,text=True)
-            for j in r.stdout.split("\n")[0:-1]:
-                mem[index]+=int(j)
+            mem[index]+=int(open(cmd).read())
 
     if uc =="UC1":
         mem_summary_str = open(MEM_TOTAL_PATH).read().split("\n")[0]
@@ -112,13 +110,11 @@ def kubecpu(uc):
     for index in cpu:
         for i in kubes: 
             if os.path.isfile(f'{mfile}/pod{i}/cpuacct.{index}'):
-                cmd = f'cat {mfile}/pod{i}/cpuacct.{index}'
+                cmd = f'{mfile}/pod{i}/cpuacct.{index}'
             else:
-                cmd = f'cat {mfile}/besteffort/pod{i}/cpuacct.{index}'
+                cmd = f'{mfile}/besteffort/pod{i}/cpuacct.{index}'
 
-            r=subprocess.run(cmd,capture_output=True,shell=True,text=True)
-            for j in r.stdout.split("\n")[0:-1]:
-                cpu[index]+=int(j)
+            cpu[index]+=int(open(cmd).read())
 
     return(cpu['usage'])
 
