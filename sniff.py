@@ -422,8 +422,8 @@ def register_kpi(meta,mem):
         tnor_stats['CKPI-2'] = round(results['rx_max']*8/1000000,2)
     else:
         tnor_stats['CKPI-15'] = round(results['availebility'],2)
-        tnor_stats['PKPI-11'] = round(results['MEC CPU max'],2)
-        tnor_stats['PKPI-12'] = round(results['MEC MEM max'],2)
+        tnor_stats['PKPI-9'] = round(results['MEC CPU max'],2)
+        tnor_stats['PKPI-10'] = round(results['MEC MEM max'],2)
     if mem:
         uc_kpi = kpis_cpumem.copy()
     else:

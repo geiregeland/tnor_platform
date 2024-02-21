@@ -118,8 +118,14 @@ AVAILEBILITY = 100.0
 MEC_CPU_USAGE = 100.0
 MEC_MEM_USAGE = 100.0
 
-tnor_stats ={'CKPI-1':PEAK_UL,'CKPI-2':PEAK_DL,'CKPI-3':MAX_UL,'CKPI-4':MAX_DL,'CKPI-5':E2E_LATENCY,'CKPI-6':TN_LATENCY,'CKPI-7':RAN_LATENCY,'CKPI-8':RAN_SNR,'CKPI-9':UE_PER_M2,'CKPI-10':RELIABILITY,'CKPI-11':PACKET_ERROR_RATE,'CKPI-12':JITTER,'CKPI-13':CAPACITY_UL,'CKPI-14':CAPACITY_DL,'CKPI-15':AVAILEBILITY,'PKPI-11':MEC_CPU_USAGE,'PKPI-12':MEC_MEM_USAGE}
+tnor_stats ={'CKPI-1':PEAK_UL,'CKPI-2':PEAK_DL,'CKPI-3':MAX_UL,'CKPI-4':MAX_DL,'CKPI-5':E2E_LATENCY,'CKPI-6':TN_LATENCY,'CKPI-7':RAN_LATENCY,'CKPI-8':RAN_SNR,'CKPI-9':UE_PER_M2,'CKPI-10':RELIABILITY,'CKPI-11':PACKET_ERROR_RATE,'CKPI-12':JITTER,'CKPI-13':CAPACITY_UL,'CKPI-14':CAPACITY_DL,'CKPI-15':AVAILEBILITY,'PKPI-9':MEC_CPU_USAGE,'PKPI-10':MEC_MEM_USAGE}
 
+dc_naming ={'CKPI-1':'PEAK_UL','CKPI-2':'PEAK_DL','CKPI-3':'NETWORK_BANDWIDTH_UL','CKPI-4':'NETWORK_BANDWIDTH_DL','CKPI-5':'E2E_LATENCY','CKPI-6':'TN_LATENCY','CKPI-7':'RAN_LATENCY','CKPI-8':'RAN_SNR','CKPI-9':'UE_PER_M2','CKPI-10':'RELIABILITY','CKPI-11':'PACKET_ERROR_RATE','CKPI-12':'JITTER','CKPI-13':'SPECTRUM_UL','CKPI-14':'SPECTRUM_DL','CKPI-15':'AVAILABILITY','PKPI-9':'MEC_CPU_USAGE','PKPI-10':'MEC_MEM_USAGE'}
+
+def get_dc_naming(kpis):
+    for i in kpis['kpis']:
+        i['name'] = dc_naming[i['name']]
+    return kpis
 
 kpis_all = {"kpis":[{"name":"CKPI-1","value":f"{PEAK_UL}","unit":"Mbps"},
 
@@ -137,8 +143,8 @@ kpis_all = {"kpis":[{"name":"CKPI-1","value":f"{PEAK_UL}","unit":"Mbps"},
                 {"name":"CKPI-13","value":f"{CAPACITY_UL}","unit":"MHz"},
                 {"name":"CKPI-14","value":f"{CAPACITY_DL}","unit":"MHz"},
                 {"name":"CKPI-15","value":f"{AVAILEBILITY}","unit":"%"},
-                {"name":"PKPI-11","value":f"{MEC_CPU_USAGE}","unit":"%"},
-                {"name":"PKPI-12","value":f"{MEC_MEM_USAGE}","unit":"%"}
+                {"name":"PKPI-9","value":f"{MEC_CPU_USAGE}","unit":"%"},
+                {"name":"PKPI-10","value":f"{MEC_MEM_USAGE}","unit":"%"}
 ]
 }
 kpis_txrx = {"kpis":[{"name":"CKPI-1","value":f"{PEAK_UL}","unit":"Mbps"},
@@ -160,8 +166,8 @@ kpis_txrx = {"kpis":[{"name":"CKPI-1","value":f"{PEAK_UL}","unit":"Mbps"},
 }
 kpis_cpumem = {"kpis":[
                 {"name":"CKPI-15","value":f"{AVAILEBILITY}","unit":"%"},    
-                {"name":"PKPI-11","value":f"{MEC_CPU_USAGE}","unit":"%"},
-                {"name":"PKPI-12","value":f"{MEC_MEM_USAGE}","unit":"%"}
+                {"name":"PKPI-9","value":f"{MEC_CPU_USAGE}","unit":"%"},
+                {"name":"PKPI-10","value":f"{MEC_MEM_USAGE}","unit":"%"}
 ]
 }
 
