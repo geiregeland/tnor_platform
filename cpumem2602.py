@@ -61,22 +61,6 @@ def sshcmd(cmd,vm):
     return errorResponse("Failed to run sshcmd",error)
 
 
-def ssh_conn(vm):
-  #print(mytime(),f"sshcmd" ,cmd)
-  medipass = mediahub_passNO
-  medipass['ip'] = vm['IP']
-  medipass['username'] = os.getenv('MS_USER')
-  medipass['password'] = os.getenv('MS_PASSWORD')
-      
-  try:
-    connection = ssh_connect(medipass)
-    #output = ssh_cmd(connection,cmd)
-    #ssh_close(connection)
-    return connection 
-  except Exception as error:
-    return errorResponse("Failed to run connect {vm['IP']}",error)
-
-
 def kubemem(uc):
     myuc=uc+'-netapp'
     cmd =f'microk8s.kubectl get pods -n {UC[myuc]} -o yaml|grep selfLink -A1|grep uid'
@@ -96,13 +80,11 @@ def kubemem(uc):
     for index in mem:
         for i in kubes: 
             if os.path.isfile(f'{mfile}/pod{i}/memory.{index}'):
-                cmd = f'cat {mfile}/pod{i}/memory.{index}'
+                cmd = f'{mfile}/pod{i}/memory.{index}'
             else:
-                cmd = f'cat {mfile}/besteffort/pod{i}/memory.{index}'
+                cmd = f'{mfile}/besteffort/pod{i}/memory.{index}'
 
-            r=subprocess.run(cmd,capture_output=True,shell=True,text=True)
-            for j in r.stdout.split("\n")[0:-1]:
-                mem[index]+=int(j)
+            mem[index]+=int(open(cmd).read())
 
     if uc =="UC1":
         mem_summary_str = open(MEM_TOTAL_PATH).read().split("\n")[0]
@@ -129,15 +111,14 @@ def kubecpu(uc):
     for index in cpu:
         for i in kubes: 
             if os.path.isfile(f'{mfile}/pod{i}/cpuacct.{index}'):
-                cmd = f'cat {mfile}/pod{i}/cpuacct.{index}'
+                cmd = f'{mfile}/pod{i}/cpuacct.{index}'
             else:
-                cmd = f'cat {mfile}/besteffort/pod{i}/cpuacct.{index}'
+                cmd = f'{mfile}/besteffort/pod{i}/cpuacct.{index}'
 
-            r=subprocess.run(cmd,capture_output=True,shell=True,text=True)
-            for j in r.stdout.split("\n")[0:-1]:
-                cpu[index]+=int(j)
-    #print(cpu['usage'],get_num_cpus(uc))
-    return cpu['usage']/get_num_cpus(uc)
+            cpu[index]+=int(open(cmd).read())
+
+    return(cpu['usage'])
+
 
 def _ustackcpu(uc):
   c = 0
@@ -148,26 +129,21 @@ def _ustackcpu(uc):
     c+=int(ct)
   return c
 
-def getallcpu():
-  return int(open(CPU_USAGE_PATH).read())
-
-def get_idle(uc):
+def get_idle():
   f=open("/proc/stat","r")
   first=f.readline().strip('\n')
   f.close()
-
-  idle=int(first.split(" ")[5])*1000000/_host_num_cpus()
-  #print(idle,_host_num_cpus())
+  idle=int(first.split(" ")[4])*1000000
   return idle
 
 def ustackcpuacct():
   c = 0
   for i in G5Conf['ustack']:
-    #print(i,G5Conf['ustack'][i])                                                                                                                                                                                                    
+    #print(i,G5Conf['ustack'][i])
     ct=open(G5Conf['ustack'][i]['cpuacct']+'cpuacct.usage_user').read()
-    c+=int(ct)/G5Conf['ustack'][i]['cpu']
+    c+=int(ct)
   return c
-
+  
 
 #microstack.openstack flavor list - vCPU allocated
 def _get_ustack_cpus():
@@ -187,11 +163,10 @@ def _get_ustack_mem():
 def _ustackmem(uc):
   c = 0
   for i in G5Conf['ustack']:
-    ct = sshcmd('cat /sys/fs/cgroup/memory/memory.usage_in_bytes /sys/fs/cgroup/memory/memory.kmem.usage_in_bytes',G5Conf['ustack'][i])
-    temp=ct.split("\n")
-    #print(temp)
-    c+=int(temp[0])
-    c+=int(temp[1])
+    ct = sshcmd('cat /sys/fs/cgroup/memory/memory.usage_in_bytes',G5Conf['ustack'][i])
+    c+=int(ct)
+    ct = sshcmd('cat /sys/fs/cgroup/memory/memory.kmem.usage_in_bytes',G5Conf['ustack'][i])
+    c+=int(ct)
   return c
 #-----------------------------------end ustack functions
 
@@ -219,11 +194,16 @@ def _newkubemem(uc):
   #        u+=int(i)
   m=0
   for i in kubes:
-      cmd = f'cat /sys/fs/cgroup/memory/kubepods/pod{i}/memory.limit_in_bytes'
-      r=subprocess.run(cmd,capture_output=True,shell=True,text=True)
-      for i in r.stdout.split("\n")[0:-1]:
-          m+=int(i)
+      cmd = f'/sys/fs/cgroup/memory/kubepods/pod{i}/memory.limit_in_bytes'
+      m+=int(open(cmd).read())
   return m
+
+      #cmd = f'cat /sys/fs/cgroup/memory/kubepods/pod{i}/memory.limit_in_bytes'
+      #r=subprocess.run(cmd,capture_output=True,shell=True,text=True)
+      #for i in r.stdout.split("\n")[0:-1]:
+      #    m+=int(i)
+      
+  #return m
   
 def get_data(uc,measure):
     lsum = 0
@@ -231,8 +211,7 @@ def get_data(uc,measure):
         if measure == "MEM":
             lsum = _ustackmem(uc)
         elif measure == "CPU":
-            #lsum = _ustackcpu(uc)
-            lsum = ustackcpuacct()
+            lsum = _ustackcpu(uc)
         return lsum
     elif os.getenv('PLATFORM') == 'HP4':
       if measure == "MEM":
@@ -274,7 +253,6 @@ def cpu_percent(uc):
     """  # noqa
     global last_system_usage
     global last_cpu_usage
-    print("cpupercent")
     try:
         cpu_usage = get_data(uc,"CPU") # convert to  ns
         system_usage = _cpu_usage()
@@ -320,30 +298,29 @@ def _getUC_cpus(uc):
   
     #return _host_num_cpus()
 
+
 def _cpu_usage():
-  #return usage per cpu
-  if os.getenv('PLATFORM') != 'INTEL1':
-    #TODOdivide by numer of cpus for kubepods
-    return int(open(CPU_USAGE_PATH_KUBEPODS).read())/_host_num_cpus()
-  else:
+    """Compute total cpu usage of the container in nanoseconds
+    by reading from cpuacct in cgroups v1 or cpu.stat in cgroups v2."""
+    if os.getenv('PLATFORM') != 'INTEL1':
+      return int(open(CPU_USAGE_PATH_KUBEPODS).read())
+    else:
+      return int(open(CPU_USAGE_PATH_MACHINE).read())
+    
+    try:
+        # cgroups v1
 
-    #return int(open(CPU_USAGE_PATH).read())/_host_num_cpus()
-    return int(open(CPU_USAGE_PATH_MACHINE).read())/G5Conf['ustack']['einbliq-mcdncache']['used_now'] #=61
-
-  try:
-      # cgroups v1
-
-      return int(open(CPU_USAGE_PATH).read())
-  except FileNotFoundError:
-      # cgroups v2
-      cpu_stat_text = open(CPU_USAGE_PATH_V2).read()
-      # e.g. "usage_usec 16089294616"
-      cpu_stat_first_line = cpu_stat_text.split("\n")[0]
-      # get the second word of the first line, cast as an integer
-      # this is the CPU usage is microseconds
-      cpu_usec = int(cpu_stat_first_line.split()[1])
-      # Convert to nanoseconds and return.
-      return cpu_usec * 1000
+        return int(open(CPU_USAGE_PATH).read())
+    except FileNotFoundError:
+        # cgroups v2
+        cpu_stat_text = open(CPU_USAGE_PATH_V2).read()
+        # e.g. "usage_usec 16089294616"
+        cpu_stat_first_line = cpu_stat_text.split("\n")[0]
+        # get the second word of the first line, cast as an integer
+        # this is the CPU usage is microseconds
+        cpu_usec = int(cpu_stat_first_line.split()[1])
+        # Convert to nanoseconds and return.
+        return cpu_usec * 1000
 
 def _system_usage():
     """

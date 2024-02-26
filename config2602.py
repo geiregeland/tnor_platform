@@ -88,13 +88,8 @@ G5Conf = Merge(G5Conf,pingConf)
 G5Conf = Merge(G5Conf,uc)
 G5Conf = Merge(G5Conf,ucowner)
 
-microstack = {'ustack': {'einbliq-mcdncache': {'ram': 8192, 'cpu': 8, 'IP': '10.20.20.40','cpuacct': '/sys/fs/cgroup/cpuacct/machine/qemu-2-instance-0000000e.libvirt-qemu/','used_now':61}, 'einbliq-mediaplayout': {'ram': 65536, 'cpu': 32, 'IP': '10.20.20.26','cpuacct': '/sys/fs/cgroup/cpuacct/machine/qemu-1-instance-0000000d.libvirt-qemu/','used_now':61}}}
+microstack = {'ustack': {'einbliq-mcdncache': {'ram': 8192, 'cpu': 8, 'IP': '10.20.20.40','cpuacct': '/sys/fs/cgroup/cpuacct/machine/qemu-2-instance-0000000e.libvirt-qemu/'}, 'einbliq-mediaplayout': {'ram': 65536, 'cpu': 32, 'IP': '10.20.20.26','cpuacct': '/sys/fs/cgroup/cpuacct/machine/qemu-1-instance-0000000d.libvirt-qemu/'}}}
 
-#microstack = {'ustack': {'einbliq-mcdncache': {'ram': 8192, 'cpu': 8, 'IP': '10.20.20.40'}, 'einbliq-mediaplayout': {'ram': 65536, 'cpu': 32, 'IP': '10.20.20.26'}}}
-#microstack.openstack host show  5mh-intel1|grep used_now
-#| 5mh-intel1 | (used_now)                       |  61 |     95744 |    1604 |
-#microstack.openstack host show  5mh-intel1|grep total
-#| 5mh-intel1 | (total)                       |  128 |     95744 |    1604 |
 
 G5Conf = Merge(G5Conf,microstack)
 
@@ -127,6 +122,12 @@ MEC_MEM_USAGE = 100.0
 
 tnor_stats ={'CKPI-1':PEAK_UL,'CKPI-2':PEAK_DL,'CKPI-3':MAX_UL,'CKPI-4':MAX_DL,'CKPI-5':E2E_LATENCY,'CKPI-6':TN_LATENCY,'CKPI-7':RAN_LATENCY,'CKPI-8':RAN_SNR,'CKPI-9':UE_PER_M2,'CKPI-10':RELIABILITY,'CKPI-11':PACKET_ERROR_RATE,'CKPI-12':JITTER,'CKPI-13':CAPACITY_UL,'CKPI-14':CAPACITY_DL,'CKPI-15':AVAILEBILITY,'PKPI-9':MEC_CPU_USAGE,'PKPI-10':MEC_MEM_USAGE}
 
+dc_naming ={'CKPI-1':'PEAK_UL','CKPI-2':'PEAK_DL','CKPI-3':'NETWORK_BANDWIDTH_UL','CKPI-4':'NETWORK_BANDWIDTH_DL','CKPI-5':'E2E_LATENCY','CKPI-6':'TN_LATENCY','CKPI-7':'RAN_LATENCY','CKPI-8':'RAN_SNR','CKPI-9':'UE_PER_M2','CKPI-10':'RELIABILITY','CKPI-11':'PACKET_ERROR_RATE','CKPI-12':'JITTER','CKPI-13':'SPECTRUM_UL','CKPI-14':'SPECTRUM_DL','CKPI-15':'AVAILABILITY','PKPI-9':'MEC_CPU_USAGE','PKPI-10':'MEC_MEM_USAGE'}
+
+def get_dc_naming(kpis):
+    for i in kpis['kpis']:
+        i['name'] = dc_naming[i['name']]
+    return kpis
 
 kpis_all = {"kpis":[{"name":"CKPI-1","value":f"{PEAK_UL}","unit":"Mbps"},
 
