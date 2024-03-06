@@ -4,7 +4,6 @@ from config import uc as UC
 import subprocess
 from netmiko import ConnectHandler
 import os
-import paramiko
 
 logger = logging.getLogger(__name__)
 
@@ -35,21 +34,6 @@ mediahub_passNO = {
         'port': 22,
         'verbose':True
         }
-
-def para_ssh_conn(vm):
-  username = os.getenv('MS_USER')
-  password = os.getenv('MS_PASSWORD')
-  ip = vm['IP']
-  try:
-    ssh = paramiko.SSHClient()
-    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    ssh.connect(f'{ip}', port=22, username=f'{username}',password=f'{password}',timeout=3)
-  
-  except Exception as error:
-    ssh.close()
-    return errorResponse("Failed to run para_ssh_conn",error)
-  return ssh
-    
 
 
 def ssh_connect(linux):
@@ -152,7 +136,7 @@ def kubecpu(uc):
             r=subprocess.run(cmd,capture_output=True,shell=True,text=True)
             for j in r.stdout.split("\n")[0:-1]:
                 cpu[index]+=int(j)
-
+    #print(cpu['usage'],get_num_cpus(uc))
     return cpu['usage']/get_num_cpus(uc)
 
 def _ustackcpu(uc):
@@ -166,13 +150,14 @@ def _ustackcpu(uc):
 
 def getallcpu():
   return int(open(CPU_USAGE_PATH).read())
+
 def get_idle(uc):
   f=open("/proc/stat","r")
   first=f.readline().strip('\n')
   f.close()
 
   idle=int(first.split(" ")[5])*1000000/_host_num_cpus()
-  #print(idle)
+  #print(idle,_host_num_cpus())
   return idle
 
 def ustackcpuacct():
@@ -197,7 +182,6 @@ def _get_ustack_mem():
   for i in G5Conf['ustack']:
     c += G5Conf['ustack'][i]['ram']
   return c*8*1e6
-
 
 
 def _ustackmem(uc):
@@ -245,8 +229,7 @@ def get_data(uc,measure):
     lsum = 0
     if os.getenv('PLATFORM') == 'INTEL1':
         if measure == "MEM":
-            lsum = para_ssh(uc)
-            #lsum = _ustackmem(uc)
+            lsum = _ustackmem(uc)
         elif measure == "CPU":
             #lsum = _ustackcpu(uc)
             lsum = ustackcpuacct()

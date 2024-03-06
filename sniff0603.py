@@ -41,7 +41,6 @@ from cpumem import _host_num_cpus as host_num_cpus
 from cpumem import get_num_cpus as get_num_vcpus
 from cpumem import get_idle as idle_cpu 
 from cpumem import ssh_conn,ssh_cmd,ssh_close
-from cpumem import para_ssh_conn
 
 from config import G5Conf
 from config import tnor_stats,kpis_all,kpis_txrx,kpis_cpumem,myprint
@@ -90,7 +89,6 @@ class ExperimentObj():
         self.active=False
         self.txrx_results={}
         self.cpumem_results={}
-
     def start(self):
         p = open_live(nic, 100, 1, 100)
         p.setfilter(tcpdump_filter)
@@ -193,14 +191,12 @@ class uStackObj(Thread):
             name=d[2].replace(' ','')
             vm['name']=name
             id.append(vm)
-        print(id)
         for i,j in enumerate(id):
             cmd=f'microstack.openstack server list |grep {j["name"]}'
             r=subprocess.run(cmd,capture_output=True,shell=True,text=True)
             idd=r.stdout.split('|')[1].replace(' ','')
-            print(idd)
             id[i]['id'] = idd
-        print(id)
+
         for j,i in enumerate(id):
             cmd=f'microstack.openstack server show {i["id"]} |grep OS-EXT-SRV-ATTR:instance_name'
             r=subprocess.run(cmd,capture_output=True,shell=True,text=True)
@@ -211,7 +207,7 @@ class uStackObj(Thread):
             #print(f'{i["name"]}',open(f'/sys/fs/cgroup/cpuacct/machine/{d}/cpuacct.usage').read())
             id[j]['cpuacct']=f'/sys/fs/cgroup/cpuacct/machine/{d}/cpuacct.usage'
         self.id=id
-        print(self.id)
+
     
 class SampleCPUMEM(Thread):
     def __init__(self):
@@ -242,9 +238,8 @@ class SampleCPUMEM(Thread):
                 self.active=0
     def stop(self):
         self.active=0
-        if os.getenv('PLATFORM') == 'INTEL1':
-            for ssh_session in self.sshconnections:
-                ssh_session.close()
+        for i in self.sshconnections:
+            ssh_close(i)
         
     def init(self,meta):
         self.results={}
@@ -257,10 +252,10 @@ class SampleCPUMEM(Thread):
         self.results['MEC CPU max'] = 0.0 #round(cpupercent(self.use_case),5)
         self.results['MEC MEM max'] = 0.0 #round(100*cpumem(self.use_case,"MEM")/total_mem(self.use_case),5)
         self.results['availebility'] = 0.0 #100*availebility()
+        self.sshconnections = []
         if os.getenv('PLATFORM') == 'INTEL1':
-            self.sshconnections = []
             for i in G5Conf['ustack']:
-                conn = para_ssh_conn(G5Conf['ustack'][i])
+                conn = ssh_conn(G5Conf['ustack'][i])
                 self.sshconnections.append(conn)
     
 
@@ -288,9 +283,10 @@ class SampleCPUMEM(Thread):
             
             #print(get_num_vcpus(self.use_case),host_num_cpus())
             quotient = cpu_delta/(system_delta+idle_delta)
+            #print(f"cpudel_delta:{cpu_delta}, system_delta:{system_delta}, idle_delta:{idle_delta}")
             #cpu_percent = round(quotient * 100 ,1)
             cpu_percent = round(quotient * 100,1)
-            print("usage_delta ",cpu_delta,"sys_delta ",system_delta,"idle_delta ",idle_delta,"per% ",cpu_percent)
+            #print("usage_delta ",cpu_delta,"sys_delta ",system_delta,"idle_delta ",idle_delta,"per% ",cpu_percent)
         self.last_system_usage = system_usage
         self.last_cpu_usage = cpu_usage
         self.last_idle = idle
@@ -311,19 +307,16 @@ class SampleCPUMEM(Thread):
 
     def mem_sample(self):
         if os.getenv('PLATFORM') == 'INTEL1':
-            c=0
-            for ssh in self.sshconnections:
-                stdin, stdout, stderr = ssh.exec_command('cat /sys/fs/cgroup/memory/memory.usage_in_bytes /sys/fs/cgroup/memory/memory.kmem.usage_in_bytes')
-                ct = stdout.read().decode("utf-8")    
 
-                #ct = ssh_cmd(i,'cat /sys/fs/cgroup/memory/memory.usage_in_bytes /sys/fs/cgroup/memory/memory.kmem.usage_in_bytes')
+            c=0
+            for i in self.sshconnections:
+                ct = ssh_cmd(i,'cat /sys/fs/cgroup/memory/memory.usage_in_bytes /sys/fs/cgroup/memory/memory.kmem.usage_in_bytes')
                 temp=ct.split("\n")
                 c+=int(temp[0])
                 c+=int(temp[1])
 
             msample = round(100*c/total_mem(self.use_case),5)
         else:
-            
             msample = round(100*cpumem(self.use_case,"MEM")/total_mem(self.use_case),5)
         if self.results['MEC MEM max'] < msample:
             self.results['MEC MEM max'] = msample
