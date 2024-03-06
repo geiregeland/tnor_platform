@@ -245,8 +245,8 @@ def get_data(uc,measure):
     lsum = 0
     if os.getenv('PLATFORM') == 'INTEL1':
         if measure == "MEM":
-            lsum = para_ssh(uc)
-            #lsum = _ustackmem(uc)
+            #lsum = para_ssh(uc)
+            lsum = _ustackmem(uc)
         elif measure == "CPU":
             #lsum = _ustackcpu(uc)
             lsum = ustackcpuacct()
