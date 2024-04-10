@@ -1,8 +1,6 @@
 import sys
 import string
 from threading import Thread
-
-
 import pcapy
 from pcapy import findalldevs, open_live
 import impacket

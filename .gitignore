@@ -37,6 +37,21 @@ ehthumbs.db
 Thumbs.db
 
 .env
+ii.py
+aa.py
+dd.py
+nn.py
+owamp.service
+pcap.py
+ps.txt
+regresults.py
+setvars.sh
+ss.py
+test2.py
+testpcap.py
+captest.pcap
+assets
+Sniff
 Logs
 Test
 __pycache__
