@@ -2,7 +2,6 @@ import sys
 import string
 from threading import Thread
 
-
 import pcapy
 from pcapy import findalldevs, open_live
 import impacket
@@ -35,13 +34,6 @@ from cpumem import _used_mem as used_mem
 from cpumem import availebility
 from cpumem import get_data as cpumem
 from cpumem import cpu_percent as cpupercent
-
-from cpumem import _cpu_usage as system_cpu_usage
-from cpumem import _host_num_cpus as host_num_cpus
-from cpumem import get_num_cpus as get_num_vcpus
-from cpumem import get_idle as idle_cpu 
-from cpumem import ssh_conn,ssh_cmd,ssh_close
-from cpumem import para_ssh_conn
 
 from config import G5Conf
 from config import tnor_stats,kpis_all,kpis_txrx,kpis_cpumem,myprint
@@ -90,9 +82,8 @@ class ExperimentObj():
         self.active=False
         self.txrx_results={}
         self.cpumem_results={}
-
     def start(self):
-        p = open_live(nic, 100, 1, 100)
+        p = open_live(nic, 100, 0, 100)
         p.setfilter(tcpdump_filter)
         
         #print("Listening on %s: net=%s, mask=%s, linktype=%d" % (dev, p.getnet(), p.getmask(), p.datalink()))
@@ -104,9 +95,11 @@ class ExperimentObj():
         self.txrx_sampler.init(self.meta)
         self.cpumem_sampler=SampleCPUMEM()
         self.cpumem_sampler.init(self.meta)
+        
         self.sniffer.start()
         self.txrx_sampler.start()
         self.cpumem_sampler.start()
+        
     def stop(self):
         self.txrx_sampler.stop()
         self.txrx_sampler.registerkpi()
@@ -156,95 +149,25 @@ class Measure:
             return min(self.samples)
         else:
             return 0
-
-class uStackObj(Thread):
-    def __init__(self,netapp):
-        self.id=[]
-        self.netapp=netapp
-        self.active=True
-        self.t_start=time.time()
-        Thread.__init__(self)
-
-    def run(self):
-        while self.active:
-            self.get_config()
-            time.sleep(FREQ)
-
-    def stop(self):
-        self.active=0
-
-    def get_data(self,data):
-        res=[]
-        for i in self.id:
-            res.append(i[data])
-        return res
         
-                    
-    def get_config(self):
-        id=[]
-        cmd=f'microstack.openstack flavor list|grep {self.netapp}'
-        r=subprocess.run(cmd,capture_output=True,shell=True,text=True)
-        for i in r.stdout.split('\n')[0:-1]:
-            d=i.split('|')
-            vm={}
-            vm['id']=''
-            vm['ram'] = int(d[3])
-            vm['vcpu'] = int(d[6])
-            name=d[2].replace(' ','')
-            vm['name']=name
-            id.append(vm)
-        print(id)
-        for i,j in enumerate(id):
-            cmd=f'microstack.openstack server list |grep {j["name"]}'
-            r=subprocess.run(cmd,capture_output=True,shell=True,text=True)
-            idd=r.stdout.split('|')[1].replace(' ','')
-            print(idd)
-            id[i]['id'] = idd
-        print(id)
-        for j,i in enumerate(id):
-            cmd=f'microstack.openstack server show {i["id"]} |grep OS-EXT-SRV-ATTR:instance_name'
-            r=subprocess.run(cmd,capture_output=True,shell=True,text=True)
-            instance = r.stdout.split("|")[2]
-            cmd2=f'ls /sys/fs/cgroup/cpuacct/machine/|grep {instance}'
-            r=subprocess.run(cmd2,capture_output=True,shell=True,text=True)
-            d=r.stdout.split('\n')[0]
-            #print(f'{i["name"]}',open(f'/sys/fs/cgroup/cpuacct/machine/{d}/cpuacct.usage').read())
-            id[j]['cpuacct']=f'/sys/fs/cgroup/cpuacct/machine/{d}/cpuacct.usage'
-        self.id=id
-        print(self.id)
-    
 class SampleCPUMEM(Thread):
     def __init__(self):
         self.active=True
         self.sample=time.time()
         self.t_start=time.time()
-        self.t_reg=time.time()
-        self.last_cpu_usage=None
-        self.last_system_usage=None
         Thread.__init__(self)
         
     def run(self):
-        cpu=True
         while self.active:
-            if time.time()-self.sample>FREQ/12:
-                if cpu:
-                    self.cpu_sample()
-                    cpu=False
-                else:
-                    self.mem_sample()
-                    cpu=True
-                if time.time()-self.t_reg>FREQ-1:
-                    self.registerkpi()
-                    self.clear_results()
-                    self.t_reg=time.time()
+            if time.time()-self.sample>FREQ:
+                self.memcpu_sample()
+                self.registerkpi()
                 self.sample=time.time()
             if time.time()-self.t_start>3600:
                 self.active=0
     def stop(self):
         self.active=0
-        if os.getenv('PLATFORM') == 'INTEL1':
-            for ssh_session in self.sshconnections:
-                ssh_session.close()
+
         
     def init(self,meta):
         self.results={}
@@ -254,82 +177,20 @@ class SampleCPUMEM(Thread):
         self.use_case = meta['use_case']
         self.uid = meta['test_case_id']
         self.meta=meta.copy()
-        self.results['MEC CPU max'] = 0.0 #round(cpupercent(self.use_case),5)
-        self.results['MEC MEM max'] = 0.0 #round(100*cpumem(self.use_case,"MEM")/total_mem(self.use_case),5)
-        self.results['availebility'] = 0.0 #100*availebility()
-        if os.getenv('PLATFORM') == 'INTEL1':
-            self.sshconnections = []
-            for i in G5Conf['ustack']:
-                conn = para_ssh_conn(G5Conf['ustack'][i])
-                self.sshconnections.append(conn)
-    
+        self.results['MEC CPU max'] = round(cpupercent(self.use_case),5)
+        self.results['MEC MEM max'] = round(100*cpumem(self.use_case,"MEM")/total_mem(),5)
+        self.results['availebility'] = 100*availebility()
 
     def clear_results(self):
         self.results['start_time'] = get_timestamp()
         self.results['MEC CPU max'] = 0
         self.results['MEC MEM max'] = 0
         self.results['availebility'] = 0
-
-
-    def cpu_sample(self):
         
-        cpu_usage = cpumem(self.use_case,"CPU")
-        system_usage= system_cpu_usage()
-        idle = idle_cpu(self.use_case)
-
-        
-        if self.last_system_usage is None:
-            cpu_percent=0.0
-        else:
-            cpu_delta = (cpu_usage - self.last_cpu_usage)
-            system_delta = (system_usage - self.last_system_usage)
-            idle_delta = (idle - self.last_idle)
-
-            
-            #print(get_num_vcpus(self.use_case),host_num_cpus())
-            quotient = cpu_delta/(system_delta+idle_delta)
-            #cpu_percent = round(quotient * 100 ,1)
-            cpu_percent = round(quotient * 100,1)
-            print("usage_delta ",cpu_delta,"sys_delta ",system_delta,"idle_delta ",idle_delta,"per% ",cpu_percent)
-        self.last_system_usage = system_usage
-        self.last_cpu_usage = cpu_usage
-        self.last_idle = idle
-
-        #try:
-            #print(cpu_percent,quotient,cpu_delta,system_delta)
-        #except:
-            #print("first")
-        if self.results['MEC CPU max'] < cpu_percent:
-            self.results['MEC CPU max'] = cpu_percent
-        #msample = round(100*cpumem(self.use_case,"MEM")/total_mem(self.use_case),5)
-        #if self.results['MEC MEM max'] < msample:
-        #    self.results['MEC MEM max'] = msample
-        #if self.results['availebility'] < 100*availebility():
-         #   self.results['availebility'] = 100*availebility()
-
-        #print(f"cpu:{self.results['MEC CPU max']}, mem:{self.results['MEC MEM max']},A:{self.results['availebility']}")
-
-    def mem_sample(self):
-        if os.getenv('PLATFORM') == 'INTEL1':
-            c=0
-            for ssh in self.sshconnections:
-                stdin, stdout, stderr = ssh.exec_command('cat /sys/fs/cgroup/memory/memory.usage_in_bytes /sys/fs/cgroup/memory/memory.kmem.usage_in_bytes')
-                ct = stdout.read().decode("utf-8")    
-
-                #ct = ssh_cmd(i,'cat /sys/fs/cgroup/memory/memory.usage_in_bytes /sys/fs/cgroup/memory/memory.kmem.usage_in_bytes')
-                temp=ct.split("\n")
-                c+=int(temp[0])
-                c+=int(temp[1])
-
-            msample = round(100*c/total_mem(self.use_case),5)
-        else:
-            
-            msample = round(100*cpumem(self.use_case,"MEM")/total_mem(self.use_case),5)
-        if self.results['MEC MEM max'] < msample:
-            self.results['MEC MEM max'] = msample
-        if self.results['availebility'] < 100*availebility():
-            self.results['availebility'] = 100*availebility()
-
+    def memcpu_sample(self):
+        self.results['MEC CPU max'] = round(cpupercent(self.use_case),5)
+        self.results['MEC MEM max'] = round(100*cpumem(self.use_case,"MEM")/total_mem(),5)
+        self.results['availebility'] = 100*availebility()
         #print(f"cpu:{self.results['MEC CPU max']}, mem:{self.results['MEC MEM max']},A:{self.results['availebility']}")
     
     def registerkpi(self):
@@ -348,9 +209,8 @@ class SampleTXRX(Thread):
         self.active=True
         self.sample=time.time()
         self.samples={}
-        self.t_reg=time.time()
         self.t_start=time.time()
-        self.src_ip=[]
+        
         Thread.__init__(self)
         
     def init(self,meta):
@@ -371,7 +231,6 @@ class SampleTXRX(Thread):
         self.results['start_time'] = get_timestamp()
         self.results['tx_max'] = 0
         self.results['rx_max'] = 0
-        self.src_ip=[]
         #self.results['MEC CPU max'] = 0
         #self.results['MEC MEM max'] = 0
         #self.results['availebility'] = 0
@@ -381,7 +240,7 @@ class SampleTXRX(Thread):
 
     def run(self):
         while self.active:
-            if time.time()-self.sample>FREQ/12:
+            if time.time()-self.sample>FREQ:
                 tx_samples=[]
                 rx_samples=[]
                 for i,m in self.sniffer.tcpdump.items():
@@ -390,7 +249,6 @@ class SampleTXRX(Thread):
                     src,dst=i.split(":")
                     for j in ue_ip:
                         if j  in src:
-                            self.src_ip.append(src)
                             tx_samples.append(p_mean)
                         if j in dst:
                             rx_samples.append(p_mean)
@@ -398,17 +256,13 @@ class SampleTXRX(Thread):
                     m.flush()
                     #print(f'{i}, mean:{human(p_mean)}, {self.uid}, delta:{time.time()-self.sample}')
                 if len(tx_samples):
-                    if self.results['tx_max'] < max(tx_samples):
-                        self.results['tx_max'] = max(tx_samples)
+                    self.results['tx_max'] = max(tx_samples)
                 if len(rx_samples):
-                    if self.results['rx_max'] < max(rx_samples):
-                        self.results['rx_max'] = max(rx_samples)
+                    self.results['rx_max'] = max(rx_samples)
                 #self.memcpu_sample()
-                if time.time()-self.t_reg>FREQ-1:
-                    self.results['src_ip']=self.src_ip.copy()
-                    self.registerkpi()
-                    self.clear_results()
-                    self.t_reg=time.time()
+
+                self.registerkpi()
+                self.clear_results()
                 
                 self.sample=time.time()
                 if time.time()-self.t_start>3600:
@@ -490,88 +344,39 @@ def Stop(meta):
     global Experiments
     test_case_id = meta['test_case_id']
     
-    try:
-        Experiments[test_case_id].stop()
-        Experiments.pop(test_case_id)
-        return 0
-    except:
-        myprint(mytime(),f'Stop error - no test_case_id found:{test_case_id}')
-    return -1
+    Experiments[test_case_id].stop()
+    return 0
 
 
 
     
 def Start(meta):
     global Experiments
-    try:
-        # to save resources, use only one open_live process.
-        
-        #if len(Experiments):
-         #   sniffer_p=Expperiments[0].sniffer.pcap
-            
-        test_case_id = meta['test_case_id']
-
+    test_case_id = meta['test_case_id']
     
-        experiment=ExperimentObj(meta)
+    experiment=ExperimentObj(meta)
     
-        experiment.start()
+    experiment.start()
     
-        myprint(mytime(),"New measurement started: ",test_case_id)
-        
-        Experiments[test_case_id]=experiment
-        return 0
-    except:
-        myprint(mytime(), f'Could not start experiment {test_case_id}')
-    return -1
+    myprint(mytime(),"New measurement started: ",test_case_id)
 
-@logged
-def ping_addr(destlist):
-    mainr=[]
-    main_std=[]
-    for dest in destlist:
-        results=[]
-        try:
-            process = subprocess.Popen(shlex.split(f"ping -c 12 -i 0.3 -s 800 {dest}"),stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    Experiments[test_case_id]=experiment
 
-            pipe=process.stdout
+    return 0
 
-            for line in pipe:
-                line = line.decode('utf-8')
-                if 'ttl' in line:
-                    line=line.split("time=")[1].split(" ms")[0]
 
-                    results.append(float(line))
-            results.sort()
-            if len(results):
-                mainr.append(statistics.mean(results[1:-1]))
-                main_std.append(statistics.stdev(results[1:-1]))
-        except Exception as error:
-            print(mytime(),f"Error in process: {error}")
-            return 0
-    if len(mainr):
-        return min(mainr),min(main_std)
-    else:
-        return(-1,-1)
 
 @logged
 def register_kpi(meta,mem):
     uid=meta['test_case_id']
     results=meta['results']
-    destlist=meta['src_ip']
-    if len(destlist):
-        min_rtt,min_stdev=ping_addr(destlist)
-    
     if not mem:
-        tnor_stats['CKPI-1'] = round(results['tx_max']*8/1000000,2)
-        tnor_stats['CKPI-2'] = round(results['rx_max']*8/1000000,2)
-        if len(destlist) and min_rtt>0:
-            tnor_stats['CKPI-5'] = round(min_rtt/2,2)
-            tnor_stats['CKPI-12'] = round(min_std/2,5)
-            tnor_stats['CKPI-6'] = round(min_rtt/2-2.5,2)
+        tnor_stats['CKPI-1'] = round(results['rx_max']*8/1000000,2)
+        tnor_stats['CKPI-2'] = round(results['tx_max']*8/1000000,2)
     else:
         tnor_stats['CKPI-15'] = round(results['availebility'],2)
-        tnor_stats['PKPI-9'] = round(results['MEC CPU max'],2)
-        tnor_stats['PKPI-10'] = round(results['MEC MEM max'],2)
+        tnor_stats['PKPI-11'] = round(results['MEC CPU max'],2)
+        tnor_stats['PKPI-12'] = round(results['MEC MEM max'],2)
     if mem:
         uc_kpi = kpis_cpumem.copy()
     else:
@@ -610,7 +415,6 @@ def get_token():
         token=response.json()['access_token']
         return token
     except Exception as error:
-        myprint(mytime(),response.reason)
         return errorResponse("Failed <get_token>",error)
 
 
@@ -648,7 +452,7 @@ def registerkpis(meta):
     #time.sleep(1)
     #r=Start(mm)
     #print(Experiments)
-#    time.sleep(20)
+#    time.sleep(5)
 #    r=Stop(meta)
     #print(Experiments)
     #time.sleep(2)

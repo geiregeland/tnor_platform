@@ -1,0 +1,19 @@
+[Unit]
+Description=owamp service
+After=multi-user.target
+Conflicts=getty@tty1.service
+
+[Service]
+Type=forking
+Restart=no
+TimeoutSec=5min
+IgnoreSIGPIPE=no
+KillMode=process
+GuessMainPID=no
+RemainAfterExit=yes
+ExecStart=/opt/bin/owampd -c /opt/etc -d /tmp -R /var/run -G nogroup -U nobody
+
+
+
+[Install]
+WantedBy=multi-user.target
