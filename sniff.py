@@ -105,7 +105,9 @@ class ExperimentObj():
         self.sniffer.start()
         self.txrx_sampler.start()
         self.cpumem_sampler.start()
+
     def stop(self):
+        print("Stopping experiment")
         self.txrx_sampler.stop()
         self.txrx_sampler.registerkpi()
         time.sleep(0.1)
@@ -361,6 +363,8 @@ class SampleTXRX(Thread):
         self.meta=meta.copy()
         self.results['tx_max'] = 0
         self.results['rx_max'] = 0
+        self.results['src_ip'] = []
+        
         #self.results['MEC CPU max'] = round(cpupercent(self.use_case),5)
         #self.results['MEC MEM max'] = round(100*cpumem(self.use_case,"MEM")/total_mem(),5)
         #self.results['availebility'] = availebility()
@@ -369,7 +373,9 @@ class SampleTXRX(Thread):
         self.results['start_time'] = get_timestamp()
         self.results['tx_max'] = 0
         self.results['rx_max'] = 0
+        self.results['srs_ip'] = []
         self.src_ip=[]
+        
         #self.results['MEC CPU max'] = 0
         #self.results['MEC MEM max'] = 0
         #self.results['availebility'] = 0
@@ -403,10 +409,18 @@ class SampleTXRX(Thread):
                         self.results['rx_max'] = max(rx_samples)
                 #self.memcpu_sample()
                 if time.time()-self.t_reg>FREQ-1:
-                    self.results['src_ip']=self.src_ip.copy()
+                    for ss in self.src_ip:
+                        if ss not in self.results['src_ip']:
+                            self.results['src_ip'].append(ss)
+                    #self.results['src_ip']=self.src_ip.copy()
                     self.registerkpi()
                     self.clear_results()
                     self.t_reg=time.time()
+
+                else:
+                    for ss in self.src_ip:
+                        if ss not in self.results['src_ip']:
+                            self.results['src_ip'].append(ss)
                 
                 self.sample=time.time()
                 if time.time()-self.t_start>3600:
@@ -424,10 +438,12 @@ class SampleTXRX(Thread):
         meta['results']=self.results.copy()
         #return
         #register_kpi(meta,False)
+        print("Register_kpi queued")
         stop_job = Job.create(register_kpi,args=[self.meta.copy(),False],id=self.test_case_id+"TXRX",connection=myredis())
         r=q_stop.enqueue_job(stop_job)
-        
+
     def stop(self):
+        print("stopping sniff")
         self.active=False
         
 class DecoderThread(Thread):
@@ -483,7 +499,7 @@ class DecoderThread(Thread):
         self.active=False
         
 
-    
+@logged    
 def Stop(meta):
     global Experiments
     test_case_id = meta['test_case_id']
@@ -498,7 +514,7 @@ def Stop(meta):
 
 
 
-    
+@logged    
 def Start(meta):
     global Experiments
     try:
@@ -553,18 +569,21 @@ def ping_addr(destlist):
 
 @logged
 def register_kpi(meta,mem):
+    print("start to register KPIs")
     uid=meta['test_case_id']
     results=meta['results']
-    destlist=meta['src_ip']
-    if len(destlist):
-        min_rtt,min_stdev=ping_addr(destlist)
-    
+    print(results)
     if not mem:
+        print("register TXRX")
+        destlist=results['src_ip']
+        print(f"destlist:{destlist}")
+        if len(destlist):
+            min_rtt,min_stdev=ping_addr(destlist)
         tnor_stats['CKPI-1'] = round(results['tx_max']*8/1000000,2)
         tnor_stats['CKPI-2'] = round(results['rx_max']*8/1000000,2)
         if len(destlist) and min_rtt>0:
             tnor_stats['CKPI-5'] = round(min_rtt/2,2)
-            tnor_stats['CKPI-12'] = round(min_std/2,5)
+            tnor_stats['CKPI-12'] = round(min_stdev/2,5)
             tnor_stats['CKPI-6'] = round(min_rtt/2-2.5,2)
     else:
         tnor_stats['CKPI-15'] = round(results['availebility'],2)
