@@ -14,6 +14,7 @@ import random
 
 
 from dotenv import load_dotenv as loadenv
+from config import get_logsize,rotate,find_new,create_new
 
 from config import myprint,logged, mytime,errorResponse
 from config import G5Conf
@@ -21,15 +22,19 @@ from config import clean_osgetenv
 from config import connRedis
 from config import expq, q_start,q_stop
 #from n2 import Start
-from sniff import Start,Stop
+from sniff import Start,Stop,Flush,Active
 from config import init_ustack
 
 init_ustack()
 
-Logfile = G5Conf['Logpath']
+Logpath = G5Conf['Logpath']
+Logfile = 'nbi_measure.log'
+Logfile_size_max=3000000
+
 PLATFORM = G5Conf['Platform']
 
-server={'UC1':'10.5.1.4','UC2':'10.5.1.4','UC3':'10.5.1.2'}
+#server={'UC1':'10.5.1.4','UC2':'10.5.1.4','UC31':'10.5.1.2','UC32':'10.5.1.4','UC3':'10.5.1.4'}
+server={'UC1':'10.5.1.4','UC2':'10.5.1.4','UC3':'10.5.1.2','32':'10.5.1.4','31':'10.5.1.2'}
 
 if PLATFORM == 'HP4':
     import flask_monitoringdashboard as dashboard
@@ -38,6 +43,10 @@ if PLATFORM == 'HP4':
 ServerPort = G5Conf['iperfport']
 ServerAddress = G5Conf['iperfhost']
 MeasurePort = G5Conf['mport']
+
+if rotate(f'{Logpath}/Logfile',Logfile_size_max):
+    n = find(f'{Logpath}/Logfile')
+    create_new(f'{Logpath}/Logfile',n)
     
 
 app = Flask(__name__)
@@ -85,12 +94,18 @@ def parameters():
         myprint(mytime(),"json=",request.json)
         myprint(mytime(),f'action:{action}, use_case:{use_case}, test_case:{test_case},test_case_id:{test_case_id}')
         
+        uc = test_case_id[0:2]
+        if uc != '32':
+            uc = use_case
+        myprint(mytime(),f'server:{server[uc]}')
+            
         if request.method == 'POST':
             if action == 'start':
-                r = requests.get(f'http://{server[use_case]}:9055/startexperiment/',json={'use_case':use_case,'test_case':test_case,'test_case_id':test_case_id,'regkpi':regkpi})
+                
+                r = requests.get(f'http://{server[uc]}:9055/startexperiment/',json={'use_case':use_case,'test_case':test_case,'test_case_id':test_case_id,'regkpi':regkpi})
                 myprint(mytime(),f'start status:{r.content}')
             elif action == 'stop':
-                r = requests.get(f'http://{server[use_case]}:9055/stopexperiment/',json={'use_case':use_case,'test_case':test_case,'test_case_id':test_case_id})
+                r = requests.get(f'http://{server[uc]}:9055/stopexperiment/',json={'use_case':use_case,'test_case':test_case,'test_case_id':test_case_id})
                 myprint(mytime(),f'stop status:{r.content}')
         elif request.method == 'GET':
             fetched_job = q_stop.fetch_job(test_case_id)
@@ -102,6 +117,22 @@ def parameters():
     except Exception as error:
         return errorResponse("Failed call to /parameters",error)
 
+@app.route('/flush/',methods = ['GET','POST'])
+@logged
+def flush():
+
+    if Flush()==0:
+        return Response("OK",200)
+    else:
+        return Response("Error: could not flush experiments",500)
+
+@app.route('/active/',methods = ['GET','POST'])
+@logged
+def active():
+
+    return Active()
+
+
 
 @app.route('/stopexperiment/',methods = ['GET','POST'])
 @logged
@@ -111,6 +142,7 @@ def stop():
     use_case = arguments['use_case']
     test_case = arguments['test_case']
     test_case_id=arguments['test_case_id']
+    myprint(mytime(),f"** Stop Experiment {use_case}:{test_case}:{test_case_id} **")
     meta={}
     meta['use_case'] = arguments['use_case']
     meta['test_case'] = arguments['test_case']
@@ -122,6 +154,7 @@ def stop():
     
 
     return f'OK',200
+
     uid = test_case_id
     job = q_start.fetch_job('startq')
     if job != None:
@@ -143,6 +176,7 @@ def start():
     test_case = arguments['test_case']
     test_case_id=arguments['test_case_id']
     uid = test_case_id
+    myprint(mytime(),f"** Start Experiment {use_case}:{test_case}:{test_case_id} **")
     meta={}
     meta['active'] = 1
     meta['use_case'] = use_case
@@ -155,6 +189,7 @@ def start():
         return Response("OK",200)
     else:
         return Response("Error: could not start experiment",500)
+
 
     if len(expq):
         try:

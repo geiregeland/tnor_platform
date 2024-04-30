@@ -21,7 +21,7 @@ import requests
 import math
 import pickle
 import random
-from rq import get_current_job
+from rq import get_current_job,Queue
 from rq.job import Job
 from scapy.all import rdpcap,IP
 
@@ -49,7 +49,7 @@ from config import logged, mytime,errorResponse
 from config import clean_osgetenv
 from config import connRedis as myredis
 from config import q_start, q_stop
-from config import expq
+from config import expq,fp
 
 Logfile = G5Conf['Logpath']
 Logpath = G5Conf['Logpath']
@@ -60,6 +60,7 @@ nic = G5Conf['nic']
 
 try:
     FREQ  = float(os.getenv('FREQ'))
+    print(f'FREQ: {FREQ}s')
 except:
     FREQ=1
     
@@ -109,7 +110,7 @@ class ExperimentObj():
     def stop(self):
         print("Stopping experiment")
         self.txrx_sampler.stop()
-        self.txrx_sampler.registerkpi()
+        #self.txrx_sampler.registerkpi()
         time.sleep(0.1)
         self.cpumem_sampler.stop()
         self.cpumem_sampler.registerkpi()
@@ -239,6 +240,8 @@ class SampleCPUMEM(Thread):
                     self.t_reg=time.time()
                 self.sample=time.time()
             if time.time()-self.t_start>3600:
+                myprint(mytime(),f'CPUMEM monitor just ended of 3600')
+                
                 self.active=0
     def stop(self):
         self.active=0
@@ -373,7 +376,6 @@ class SampleTXRX(Thread):
         self.results['start_time'] = get_timestamp()
         self.results['tx_max'] = 0
         self.results['rx_max'] = 0
-        self.results['srs_ip'] = []
         self.src_ip=[]
         
         #self.results['MEC CPU max'] = 0
@@ -424,7 +426,10 @@ class SampleTXRX(Thread):
                 
                 self.sample=time.time()
                 if time.time()-self.t_start>3600:
+                    myprint(mytime(),f'TXRX monitor just ended of 3600')
                     self.active=0
+                    
+        self.registerkpi()
 
 
     def get_results(self):
@@ -434,12 +439,12 @@ class SampleTXRX(Thread):
         #self.get_txrx()
         #self.memcpu_sample()
         #print(self.results)
-        meta=self.meta
+        meta=self.meta.copy()
         meta['results']=self.results.copy()
         #return
         #register_kpi(meta,False)
         print("Register_kpi queued")
-        stop_job = Job.create(register_kpi,args=[self.meta.copy(),False],id=self.test_case_id+"TXRX",connection=myredis())
+        stop_job = Job.create(register_kpi,args=[meta.copy(),False],id=self.test_case_id+"TXRX",connection=myredis())
         r=q_stop.enqueue_job(stop_job)
 
     def stop(self):
@@ -493,11 +498,44 @@ class DecoderThread(Thread):
                 except:
                     continue
             if time.time()-self.t_start>3600:
+                myprint(mytime(),f'Decoder loop just ended of 3600')
+                
                 self.active=False
   
     def stop(self):
         self.active=False
-        
+
+@logged    
+def Flush():
+    global Experiments
+    #try:
+    for ex in Experiments.values():
+        ex.stop()
+    ll=Experiments.keys()
+    for idd in Experiments.copy():
+        if Experiments[idd]:
+            Experiments.pop(idd)
+    time.sleep(5)
+    q_stop = Queue('default',connection = myredis())
+    if q_stop.count > 0:
+        print(q_stop.count)
+        q_stop.empty()
+
+    return 0
+    #except:
+        #myprint(mytime(),f'Flush error - experiments')
+    return -1
+
+@logged    
+def Active():
+    global Experiments
+    #try:
+    a=[]
+    for ex in Experiments.values():
+        a.append(ex.test_case_id)
+    return a
+
+
 
 @logged    
 def Stop(meta):
@@ -509,7 +547,7 @@ def Stop(meta):
         Experiments.pop(test_case_id)
         return 0
     except:
-        myprint(mytime(),f'Stop error - no test_case_id found:{test_case_id}')
+        myprint(mytime(),f'Stop error - no test_case_id found:{test_case_id},{Experiments}')
     return -1
 
 
@@ -543,27 +581,29 @@ def ping_addr(destlist):
     mainr=[]
     main_std=[]
     for dest in destlist:
-        results=[]
-        try:
-            process = subprocess.Popen(shlex.split(f"ping -c 12 -i 0.3 -s 800 {dest}"),stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        if dest != '10.6.66.182':
 
-            pipe=process.stdout
+            results=[]
+            try:
+                process = subprocess.Popen(shlex.split(f"ping -c 8 -i 0.3 -s 800 {dest}"),stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
-            for line in pipe:
-                line = line.decode('utf-8')
-                if 'ttl' in line:
-                    line=line.split("time=")[1].split(" ms")[0]
+                pipe=process.stdout
 
-                    results.append(float(line))
-            results.sort()
-            if len(results):
-                mainr.append(statistics.mean(results[1:-1]))
-                main_std.append(statistics.stdev(results[1:-1]))
-        except Exception as error:
-            print(mytime(),f"Error in process: {error}")
-            return 0
+                for line in pipe:
+                    line = line.decode('utf-8')
+                    if 'ttl' in line:
+                        line=line.split("time=")[1].split(" ms")[0]
+
+                        results.append(float(line))
+                results.sort()
+                if len(results):
+                    mainr.append(statistics.mean(results[1:-1]))
+                    main_std.append(statistics.stdev(results[1:-1]))
+            except Exception as error:
+                print(mytime(),f"Error in process: {error}")
+                return 0
     if len(mainr):
-        return min(mainr),min(main_std)
+        return max(mainr),max(main_std)
     else:
         return(-1,-1)
 
@@ -571,7 +611,7 @@ def ping_addr(destlist):
 def register_kpi(meta,mem):
     print("start to register KPIs")
     uid=meta['test_case_id']
-    results=meta['results']
+    results=meta['results'].copy()
     print(results)
     if not mem:
         print("register TXRX")
@@ -601,7 +641,7 @@ def register_kpi(meta,mem):
         
     meta['kpis'] = uc_kpi
     if meta['regkpi']:
-        registerkpis(meta)
+        registerkpis(meta.copy())
     #myprint(mytime(),f'Ending experiment.......')
     #myprint(mytime(), meta)
     #file = open(f'{G5Conf["Logpath"]}/{G5Conf["logfiletemp"]}','wb')
@@ -646,6 +686,16 @@ def registerkpis(meta):
         data={'test': {'use_case': f'{use_case}', 'test_case': f'{test_case}', 'test_case_id': f'{test_case_id}'}, 'data': {'timestamp': f'{get_timestamp()}', 'kpis': uc_kpis['kpis']}}
     
         myprint(mytime(),"Data to register=",data)
+        hh = f'use_case:{use_case}\t test_case:{test_case}\t ID:{test_case_id}'
+        print(hh)
+        print('-'*(len(hh)+5))
+
+        for i in uc_kpis['kpis']:
+            if len(i['name'])<7:
+                print(i['name'],"\t",fp[i['name']],"\t",i['value'],"\t",i['unit'])
+            else:
+                print(i['name'],"",fp[i['name']],"\t",i['value'],"\t",i['unit'])
+            
         r=requests.post('http://5gmediahub.vvservice.cttc.es/5gmediahub/data-collector/kpis',headers=headers,json=data)
         myprint(mytime(),"Register response:",r)
     except Exception as error:

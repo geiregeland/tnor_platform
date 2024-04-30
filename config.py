@@ -15,6 +15,31 @@ expq={}
 os_platform = os.getenv('PLATFORM')
 run_jobs={}
 
+def get_logsize(ff):
+    s = os.path.getsize(f'{ff}')
+    return (int(s))
+
+def rotate(ff,s):    
+    if get_logsize(ff)>s:
+        return True
+    return False
+
+def find_new(ff):
+    n=1
+    for i in [1,2,3,4,5,7,8,9,10,11,12,13,14,15,16]:
+        if os.path.isfile(f'{ff}.{i}'):
+            continue
+        else:
+            break
+    return str(i)
+
+def create_new(ff,i):
+    os.rename(ff,f'{ff}.{i}')
+
+    with open(os.path.join(G5Conf["Logpath"],'nbi_measure.log'),'w') as fp:
+        pass
+
+
 def Merge(dict1, dict2):
     res = {**dict1, **dict2}
 
@@ -76,8 +101,8 @@ elif os_platform == 'HP4':
     owampConf = {'owping':'/opt/bin/owping','owconf':'-c100 -i0.1 -L10 -s0 -t -AO -nm','owampdest':f'{IperfConf["iperfhost"]}'}
 
 
-uc = {'UC1-netapp':'norigin-streaming', 'UC2-netapp':'ektacom-stream-selector','UC3-netapp':'ektacom-stream-selector'}
-ucowner = {'UC1-owner':'norigin', 'UC2-owner':'ektacom-','UC3-owner':'ektacom'}
+uc = {'UC1-netapp':'norigin-streaming', 'UC2-netapp':'ektacom-stream-selector','UC3-netapp':'ektacom-stream-selector','UC31-netapp':'ektacom-stream-selector','UC32-netapp':'ektacom-stream-selector'}
+ucowner = {'UC1-owner':'norigin', 'UC2-owner':'ektacom-','UC3-owner':'ektacom','UC31-owner':'ektacom','UC32-owner':'ektacom'}
 
 pingConf = {'clientcmd':'ping -c 12 -i 0.3','mport':9055}
 
@@ -109,6 +134,41 @@ def init_ustack():
 
 PEAK_UL = 126
 PEAK_DL= 794
+MAX_UL = 130.0
+MAX_DL = 800.0
+E2E_LATENCY = 10
+TN_LATENCY = 0.14400
+RAN_LATENCY = 5
+RAN_SNR = 100.0
+UE_PER_M2 = 1.0
+RELIABILITY = 100
+PACKET_ERROR_RATE = 0.0
+JITTER=0.0
+CAPACITY_UL = 80
+CAPACITY_DL = 80
+AVAILEBILITY = 100.0
+MEC_CPU_USAGE = 100.0
+MEC_MEM_USAGE = 100.0
+
+fp={'CKPI-1':'PEAK_UL',
+    'CKPI-2':'PEAK_DL',
+    'CKPI-3':'MAX_UL',
+    'CKPI-4':'MAX_DL',
+    'CKPI-5':'E2E_LATENCY',
+    'CKPI-6':'TN_LATENCY',
+    'CKPI-7':'RAN_LATENCY',
+    'CKPI-8':'RAN_SNR',
+    'CKPI-9':'UE_PER_M2',
+    'CKPI-10':'RELIABIL',
+    'CKPI-11':'PCKT_ERR',
+    'CKPI-12':'JITTER',
+    'CKPI-13':'CAP_UL',
+    'CKPI-14':'CAP_DL',
+    'CKPI-15':'AVAIL',
+    'PKPI-9':'CPU_USAG',
+    'PKPI-10':'MEM_USAG'
+    }
+
 MAX_UL = 130.0
 MAX_DL = 800.0
 E2E_LATENCY = 10
@@ -172,13 +232,15 @@ kpis_cpumem = {"kpis":[
 ]
 }
 
-ue_ip = {'10.7.0':'mda-go','10.6.66':'5G SA fbu','192.168.240':'VPN'}
+ue_ip = {'10.7.0':'mda-go','10.6.66':'5G SA fbu'}
+#ue_ip = {'10.7.0':'mda-go','10.6.66':'5G SA fbu','192.168.240':'VPN'}
 ips={}
 for i in ue_ip:
     ips[ue_ip[i]]=i
 
 
-tcpdump_filter=f"net {ips['mda-go']}.0/24 or net {ips['5G SA fbu']}.0/24 or net {ips['VPN']}.0/24"
+tcpdump_filter=f"net {ips['mda-go']}.0/24 or net {ips['5G SA fbu']}.0/24"
+#tcpdump_filter=f"net {ips['mda-go']}.0/24 or net {ips['5G SA fbu']}.0/24 or net {ips['VPN']}.0/24"
 
 def clean_osgetenv(s):
     try:
