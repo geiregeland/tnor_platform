@@ -33,10 +33,10 @@ def find_new(ff):
             break
     return str(i)
 
-def create_new(ff,i):
-    os.rename(ff,f'{ff}.{i}')
+def create_new(ffpath,ffname,i):
+    os.rename(f'{ffpath}/{ffname}',f'{ffpath}/{ffname}.{i}')
 
-    with open(os.path.join(G5Conf["Logpath"],'nbi_measure.log'),'w') as fp:
+    with open(os.path.join(f'{ffpath}',f'{ffname}'),'w') as fp:
         pass
 
 

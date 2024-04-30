@@ -44,9 +44,9 @@ ServerPort = G5Conf['iperfport']
 ServerAddress = G5Conf['iperfhost']
 MeasurePort = G5Conf['mport']
 
-if rotate(f'{Logpath}/Logfile',Logfile_size_max):
-    n = find(f'{Logpath}/Logfile')
-    create_new(f'{Logpath}/Logfile',n)
+if rotate(f'{Logpath}/{Logfile}',Logfile_size_max):
+    n = find(f'{Logpath}/{Logfile}')
+    create_new(f'{Logpath}',f'{Logfile}',n)
     
 
 app = Flask(__name__)
